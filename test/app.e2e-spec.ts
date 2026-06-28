@@ -29,6 +29,19 @@ describe('AppController (e2e)', () => {
       .expect('Hello World!');
   });
 
+  it('returns structured JSON for unknown routes', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/unknown-route')
+      .expect(404);
+
+    expect(response.body).toMatchObject({
+      statusCode: 404,
+      error: 'Not Found',
+      path: '/unknown-route',
+    });
+    expect(response.body.timestamp).toEqual(expect.any(String));
+  });
+
   afterEach(async () => {
     await app.close();
   });
