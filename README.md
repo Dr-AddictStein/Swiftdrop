@@ -214,3 +214,15 @@ GitHub Actions runs on every push and pull request to `main`:
 ## License
 
 UNLICENSED — private assignment project.
+
+## Frontend Dashboard
+
+A React testing dashboard lives in [`Frontend/`](./Frontend/). See [Frontend/README.md](./Frontend/README.md) for setup.
+
+```bash
+# Terminal 1 — backend
+npm run start:dev
+
+# Terminal 2 — dashboard
+cd Frontend && npm run dev
+```
