@@ -26,7 +26,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     const resolved = this.resolveException(exception);
 
-    if (resolved.statusCode >= HttpStatus.INTERNAL_SERVER_ERROR) {
+    if (resolved.statusCode >= 500) {
       this.logger.error(
         `${request.method} ${request.url}`,
         exception instanceof Error ? exception.stack : String(exception),
@@ -79,11 +79,25 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     return {
       statusCode,
-      message: Array.isArray(message)
-        ? message.map(String)
-        : String(message),
+      message: this.formatMessage(message),
       error,
     };
+  }
+
+  private formatMessage(message: unknown): string | string[] {
+    if (Array.isArray(message)) {
+      return message.map((item) => String(item));
+    }
+
+    if (typeof message === 'string') {
+      return message;
+    }
+
+    if (typeof message === 'number' || typeof message === 'boolean') {
+      return String(message);
+    }
+
+    return 'Unexpected error';
   }
 
   private resolveDatabaseError(exception: DatabaseError): ResolvedError {

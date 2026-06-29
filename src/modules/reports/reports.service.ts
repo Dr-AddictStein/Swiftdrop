@@ -1,8 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import {
-  AgentReportRow,
-  ReportsRepository,
-} from './reports.repository';
+import { AgentReportRow, ReportsRepository } from './reports.repository';
 
 export interface AgentReportSummary {
   agentId: string;

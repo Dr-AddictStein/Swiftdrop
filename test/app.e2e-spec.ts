@@ -1,4 +1,3 @@
-import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   FastifyAdapter,
@@ -8,7 +7,7 @@ import request from 'supertest';
 import { AppModule } from './../src/app.module';
 
 describe('AppController (e2e)', () => {
-  let app: INestApplication;
+  let app: NestFastifyApplication;
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -34,12 +33,19 @@ describe('AppController (e2e)', () => {
       .get('/unknown-route')
       .expect(404);
 
-    expect(response.body).toMatchObject({
+    const body = response.body as {
+      statusCode: number;
+      error: string;
+      path: string;
+      timestamp: string;
+    };
+
+    expect(body).toMatchObject({
       statusCode: 404,
       error: 'Not Found',
       path: '/unknown-route',
     });
-    expect(response.body.timestamp).toEqual(expect.any(String));
+    expect(body.timestamp).toEqual(expect.any(String));
   });
 
   afterEach(async () => {

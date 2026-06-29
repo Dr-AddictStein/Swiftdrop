@@ -1,98 +1,209 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Swiftdrop API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend API for **Swiftdrop**, a last-mile delivery platform. Handles parcel registration, delivery agent management, route assignments, delivery event tracking, and agent performance reporting.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Tech Stack
 
-## Description
+- **NestJS** with **Fastify** adapter
+- **PostgreSQL** with **Drizzle ORM** and **drizzle-kit** migrations
+- **JWT** authentication and **API key** guard
+- **class-validator** / **class-transformer** for request validation
+- **Jest** for unit and e2e tests
+- **GitHub Actions** for CI
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Prerequisites
 
-## Project setup
+- Node.js 20+
+- npm
+- PostgreSQL 14+
+
+## Getting Started
+
+### 1. Install dependencies
 
 ```bash
-$ npm install
+npm install
 ```
 
-## Compile and run the project
+### 2. Configure environment variables
+
+Copy the example env file and update values as needed:
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+cp .env.example .env
 ```
 
-## Run tests
+| Variable | Description |
+|---|---|
+| `PORT` | HTTP port (default: `3000`) |
+| `DATABASE_URL` | PostgreSQL connection string |
+| `JWT_SECRET` | Secret used to sign JWT access tokens |
+| `JWT_EXPIRES_IN` | JWT lifetime (e.g. `1d`, `12h`) |
+| `API_KEY` | Required `x-api-key` header value for protected routes |
+
+### 3. Run database migrations
+
+Ensure PostgreSQL is running and the database exists, then apply migrations:
+
+```bash
+npm run db:migrate
+```
+
+Generate new migrations after schema changes:
+
+```bash
+npm run db:generate
+```
+
+Verify migrations match the current schema:
+
+```bash
+npm run db:check
+```
+
+### 4. Seed sample users (optional)
+
+Creates an admin and delivery agent (password: `password123`):
+
+```bash
+npm run db:seed
+```
+
+- Admin: `admin@swiftdrop.com`
+- Agent: `agent@swiftdrop.com`
+
+### 5. Start the server
+
+```bash
+# development (watch mode)
+npm run start:dev
+
+# production build
+npm run build
+npm run start:prod
+```
+
+The API listens on `http://localhost:3000` by default.
+
+## Authentication
+
+Most routes require two headers:
+
+```http
+x-api-key: <API_KEY>
+Authorization: Bearer <JWT access token>
+```
+
+Obtain a JWT via login (public route — no API key or JWT required):
+
+```bash
+curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@swiftdrop.com","password":"password123"}'
+```
+
+## API Overview
+
+### Auth
+
+| Method | Route | Access |
+|---|---|---|
+| `POST` | `/auth/login` | Public |
+
+### Users
+
+| Method | Route | Access |
+|---|---|---|
+| `GET` | `/users` | Admin |
+| `GET` | `/users/:id` | Admin or self |
+| `PATCH` | `/users/:id/availability` | Admin or self (agents only) |
+
+### Parcels
+
+| Method | Route | Access |
+|---|---|---|
+| `POST` | `/parcels` | Admin |
+| `GET` | `/parcels` | Admin (all) / Agent (assigned) |
+| `GET` | `/parcels/:id` | Admin or assigned agent |
+| `GET` | `/parcels/:id/history` | Admin or assigned agent |
+| `PATCH` | `/parcels/:id/assign` | Admin |
+| `PATCH` | `/parcels/:id/status` | Assigned delivery agent |
+
+Query params for `GET /parcels`: `status`, `sender`
+
+### Delivery Events
+
+| Method | Route | Access |
+|---|---|---|
+| `POST` | `/delivery-events` | Delivery agent |
+| `GET` | `/delivery-events/:parcelId` | Admin or assigned agent |
+
+### Reports
+
+| Method | Route | Access |
+|---|---|---|
+| `GET` | `/reports/agents` | Admin |
+
+Returns per-agent **total deliveries**, **success rate**, and **average pickup-to-delivery time**.
+
+## Parcel Status Flow
+
+```
+REGISTERED → PICKED_UP → OUT_FOR_DELIVERY → DELIVERED
+                              ↓
+                        FAILED_ATTEMPT → OUT_FOR_DELIVERY → DELIVERED
+```
+
+Invalid jumps (e.g. `REGISTERED → DELIVERED`) are rejected with a structured error.
+
+## Testing
 
 ```bash
 # unit tests
-$ npm run test
+npm test
 
 # e2e tests
-$ npm run test:e2e
+npm run test:e2e
 
-# test coverage
-$ npm run test:cov
+# coverage
+npm run test:cov
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## Linting & Formatting
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+# check lint (CI)
+npm run lint:check
+
+# auto-fix
+npm run lint
+
+# format
+npm run format
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+## Project Structure
 
-## Resources
+```
+src/
+├── common/           # guards, filters, decorators, enums, state machine
+├── config/           # environment configuration
+├── database/         # Drizzle schema, service, seed
+└── modules/
+    ├── auth/
+    ├── users/
+    ├── parcels/
+    ├── delivery-events/
+    └── reports/
+```
 
-Check out a few resources that may come in handy when working with NestJS:
+## CI
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+GitHub Actions runs on every push and pull request to `main`:
 
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+- **lint-test-build** — lint, unit tests, e2e tests, build
+- **migration-check** — `drizzle-kit check` to verify migrations match schema
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+UNLICENSED — private assignment project.

@@ -61,10 +61,7 @@ export class DeliveryEventsService {
     this.assertCanUpdateStatus(parcel, requester);
     assertValidStatusTransition(parcel.status, input.status);
 
-    if (
-      input.status === ParcelStatus.PICKED_UP &&
-      !parcel.assignedAgentId
-    ) {
+    if (input.status === ParcelStatus.PICKED_UP && !parcel.assignedAgentId) {
       throw new BadRequestException(
         'Parcel must be assigned to a delivery agent before pickup',
       );

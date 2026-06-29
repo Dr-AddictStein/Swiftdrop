@@ -52,7 +52,10 @@ export class UsersRepository {
       .then((rows) => rows[0] ?? null);
   }
 
-  updateAvailability(id: string, isAvailable: boolean): Promise<SafeUser | null> {
+  updateAvailability(
+    id: string,
+    isAvailable: boolean,
+  ): Promise<SafeUser | null> {
     return this.drizzleService.db
       .update(users)
       .set({ isAvailable })

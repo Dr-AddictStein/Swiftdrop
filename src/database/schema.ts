@@ -48,9 +48,7 @@ export const parcels = pgTable('parcels', {
   recipientName: varchar('recipient_name', { length: 255 }).notNull(),
   recipientAddress: text('recipient_address').notNull(),
   assignedAgentId: uuid('assigned_agent_id').references(() => users.id),
-  status: parcelStatusEnum('status')
-    .notNull()
-    .default(ParcelStatus.REGISTERED),
+  status: parcelStatusEnum('status').notNull().default(ParcelStatus.REGISTERED),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),

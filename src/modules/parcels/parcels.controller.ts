@@ -61,10 +61,7 @@ export class ParcelsController {
 
   @Patch(':id/assign')
   @Roles(UserRole.ADMIN)
-  assign(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: AssignParcelDto,
-  ) {
+  assign(@Param('id', ParseUUIDPipe) id: string, @Body() dto: AssignParcelDto) {
     return this.parcelsService.assign(id, dto);
   }
 

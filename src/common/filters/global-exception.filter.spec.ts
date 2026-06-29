@@ -1,8 +1,4 @@
-import {
-  ArgumentsHost,
-  HttpStatus,
-  NotFoundException,
-} from '@nestjs/common';
+import { ArgumentsHost, HttpStatus, NotFoundException } from '@nestjs/common';
 import { GlobalExceptionFilter } from './global-exception.filter';
 import { InvalidStatusTransitionException } from '../exceptions/invalid-status-transition.exception';
 import { DatabaseError } from 'pg';
@@ -39,7 +35,7 @@ describe('GlobalExceptionFilter', () => {
         message: 'Parcel not found',
         error: 'Not Found',
         path: '/parcels/1/status',
-        timestamp: expect.any(String),
+        timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
       }),
     );
   });

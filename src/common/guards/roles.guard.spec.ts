@@ -32,9 +32,9 @@ describe('RolesGuard', () => {
   it('allows access when the user has a required role', () => {
     reflector.getAllAndOverride.mockReturnValue([UserRole.ADMIN]);
 
-    expect(
-      guard.canActivate(createContext({ role: UserRole.ADMIN })),
-    ).toBe(true);
+    expect(guard.canActivate(createContext({ role: UserRole.ADMIN }))).toBe(
+      true,
+    );
   });
 
   it('denies access when the user lacks the required role', () => {

@@ -101,7 +101,10 @@ describe('ParcelsService', () => {
     parcelsRepository.findAll.mockResolvedValue([parcel]);
 
     await expect(
-      service.findAll({ status: ParcelStatus.REGISTERED, sender: 'Alice' }, admin),
+      service.findAll(
+        { status: ParcelStatus.REGISTERED, sender: 'Alice' },
+        admin,
+      ),
     ).resolves.toEqual([parcel]);
 
     expect(parcelsRepository.findAll).toHaveBeenCalledWith({

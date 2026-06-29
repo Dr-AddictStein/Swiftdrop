@@ -38,9 +38,7 @@ export class ParcelsService {
       status: query.status,
       sender: query.sender,
       assignedAgentId:
-        requester.role === UserRole.DELIVERY_AGENT
-          ? requester.id
-          : undefined,
+        requester.role === UserRole.DELIVERY_AGENT ? requester.id : undefined,
     };
 
     return this.parcelsRepository.findAll(filters);

@@ -50,9 +50,7 @@ export class ParcelsRepository {
       return baseQuery.orderBy(parcels.createdAt);
     }
 
-    return baseQuery
-      .where(and(...conditions))
-      .orderBy(parcels.createdAt);
+    return baseQuery.where(and(...conditions)).orderBy(parcels.createdAt);
   }
 
   assign(id: string, assignedAgentId: string): Promise<ParcelRecord | null> {

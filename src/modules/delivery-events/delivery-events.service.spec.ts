@@ -1,7 +1,4 @@
-import {
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { InvalidStatusTransitionException } from '../../common/exceptions/invalid-status-transition.exception';
 import { ParcelStatus } from '../../common/enums/parcel-status.enum';
@@ -73,7 +70,10 @@ describe('DeliveryEventsService', () => {
       providers: [
         DeliveryEventsService,
         { provide: DrizzleService, useValue: drizzleService },
-        { provide: DeliveryEventsRepository, useValue: deliveryEventsRepository },
+        {
+          provide: DeliveryEventsRepository,
+          useValue: deliveryEventsRepository,
+        },
       ],
     }).compile();
 

@@ -25,10 +25,7 @@ describe('Parcel status transitions', () => {
 
   it('allows the happy-path delivery flow', () => {
     expect(
-      isValidStatusTransition(
-        ParcelStatus.REGISTERED,
-        ParcelStatus.PICKED_UP,
-      ),
+      isValidStatusTransition(ParcelStatus.REGISTERED, ParcelStatus.PICKED_UP),
     ).toBe(true);
     expect(
       isValidStatusTransition(
@@ -71,14 +68,18 @@ describe('Parcel status transitions', () => {
         ParcelStatus.REGISTERED,
         ParcelStatus.DELIVERED,
       ),
-    ).toThrow("Invalid parcel status transition from 'REGISTERED' to 'DELIVERED'");
+    ).toThrow(
+      "Invalid parcel status transition from 'REGISTERED' to 'DELIVERED'",
+    );
 
     expect(() =>
       assertValidStatusTransition(
         ParcelStatus.DELIVERED,
         ParcelStatus.PICKED_UP,
       ),
-    ).toThrow("Invalid parcel status transition from 'DELIVERED' to 'PICKED_UP'");
+    ).toThrow(
+      "Invalid parcel status transition from 'DELIVERED' to 'PICKED_UP'",
+    );
 
     expect(() =>
       assertValidStatusTransition(
