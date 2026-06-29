@@ -1,0 +1,1 @@
+ALTER TABLE "parcels" ADD COLUMN "retry_queued" boolean DEFAULT false NOT NULL;

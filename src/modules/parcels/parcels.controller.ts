@@ -17,6 +17,7 @@ import type { AuthenticatedUser } from '../../common/interfaces/authenticated-us
 import { DeliveryEventsService } from '../delivery-events/delivery-events.service';
 import { AssignParcelDto } from './dto/assign-parcel.dto';
 import { CreateParcelDto } from './dto/create-parcel.dto';
+import { DispatchRetryDto } from './dto/dispatch-retry.dto';
 import { ListParcelsQueryDto } from './dto/list-parcels-query.dto';
 import { UpdateParcelStatusDto } from './dto/update-parcel-status.dto';
 import { ParcelsService } from './parcels.service';
@@ -43,6 +44,11 @@ export class ParcelsController {
     return this.parcelsService.findAll(query, user);
   }
 
+  @Get('retry-queue')
+  findRetryQueue(@CurrentUser() user: AuthenticatedUser) {
+    return this.parcelsService.findRetryQueue(user);
+  }
+
   @Get(':id/history')
   getHistory(
     @Param('id', ParseUUIDPipe) id: string,
@@ -63,6 +69,22 @@ export class ParcelsController {
   @Roles(UserRole.ADMIN)
   assign(@Param('id', ParseUUIDPipe) id: string, @Body() dto: AssignParcelDto) {
     return this.parcelsService.assign(id, dto);
+  }
+
+  @Patch(':id/requeue')
+  @Roles(UserRole.ADMIN)
+  requeue(@Param('id', ParseUUIDPipe) id: string) {
+    return this.parcelsService.requeue(id);
+  }
+
+  @Patch(':id/retry-dispatch')
+  @Roles(UserRole.DELIVERY_AGENT)
+  dispatchRetry(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: DispatchRetryDto,
+  ) {
+    return this.deliveryEventsService.dispatchRetry(id, user, dto.remarks);
   }
 
   @Patch(':id/status')

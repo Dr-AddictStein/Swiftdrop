@@ -48,6 +48,31 @@ export class DeliveryEventsService {
     return this.deliveryEventsRepository.findByParcelId(parcelId);
   }
 
+  async dispatchRetry(
+    parcelId: string,
+    requester: AuthenticatedUser,
+    remarks?: string,
+  ) {
+    const parcel = await this.findParcelOrThrow(parcelId);
+
+    if (!parcel.retryQueued) {
+      throw new BadRequestException('Parcel is not queued for retry');
+    }
+
+    if (parcel.status !== ParcelStatus.FAILED_ATTEMPT) {
+      throw new BadRequestException(
+        'Only failed delivery attempts can be retried',
+      );
+    }
+
+    return this.recordStatusChange(
+      parcelId,
+      ParcelStatus.OUT_FOR_DELIVERY,
+      requester,
+      remarks ?? 'Retry dispatched',
+    );
+  }
+
   private async applyStatusChange(
     input: {
       parcelId: string;
@@ -80,7 +105,14 @@ export class DeliveryEventsService {
 
       const [updatedParcel] = await tx
         .update(parcels)
-        .set({ status: input.status })
+        .set({
+          status: input.status,
+          retryQueued: this.resolveRetryQueuedFlag(
+            parcel.status,
+            input.status,
+            parcel.retryQueued,
+          ),
+        })
         .where(eq(parcels.id, input.parcelId))
         .returning();
 
@@ -136,5 +168,24 @@ export class DeliveryEventsService {
         'You can only update status for parcels assigned to you',
       );
     }
+  }
+
+  private resolveRetryQueuedFlag(
+    currentStatus: ParcelStatus,
+    nextStatus: ParcelStatus,
+    currentRetryQueued: boolean,
+  ): boolean {
+    if (nextStatus === ParcelStatus.FAILED_ATTEMPT) {
+      return true;
+    }
+
+    if (
+      currentStatus === ParcelStatus.FAILED_ATTEMPT &&
+      nextStatus === ParcelStatus.OUT_FOR_DELIVERY
+    ) {
+      return false;
+    }
+
+    return currentRetryQueued;
   }
 }

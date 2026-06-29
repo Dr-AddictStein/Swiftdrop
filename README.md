@@ -124,12 +124,19 @@ curl -X POST http://localhost:3000/auth/login \
 |---|---|---|
 | `POST` | `/parcels` | Admin |
 | `GET` | `/parcels` | Admin (all) / Agent (assigned) |
+| `GET` | `/parcels/retry-queue` | Admin (all) / Agent (assigned) |
 | `GET` | `/parcels/:id` | Admin or assigned agent |
 | `GET` | `/parcels/:id/history` | Admin or assigned agent |
 | `PATCH` | `/parcels/:id/assign` | Admin |
+| `PATCH` | `/parcels/:id/requeue` | Admin — manually flag a failed parcel for retry |
+| `PATCH` | `/parcels/:id/retry-dispatch` | Assigned agent — dispatch a queued retry |
 | `PATCH` | `/parcels/:id/status` | Assigned delivery agent |
 
 Query params for `GET /parcels`: `status`, `sender`
+
+#### Retry queue (bonus)
+
+When a parcel transitions to `FAILED_ATTEMPT`, it is automatically flagged with `retryQueued: true` in the database. Admins can list the queue via `GET /parcels/retry-queue` and manually re-queue failed parcels. Assigned agents dispatch retries via `PATCH /parcels/:id/retry-dispatch`, which moves the parcel back to `OUT_FOR_DELIVERY` and clears the queue flag.
 
 ### Delivery Events
 

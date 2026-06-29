@@ -14,7 +14,10 @@ import { ParcelsRepository } from './parcels.repository';
 describe('ParcelsService', () => {
   let service: ParcelsService;
   let parcelsRepository: jest.Mocked<
-    Pick<ParcelsRepository, 'create' | 'findById' | 'findAll' | 'assign'>
+    Pick<
+      ParcelsRepository,
+      'create' | 'findById' | 'findAll' | 'assign' | 'setRetryQueued'
+    >
   >;
   let usersRepository: jest.Mocked<Pick<UsersRepository, 'findById'>>;
 
@@ -39,6 +42,7 @@ describe('ParcelsService', () => {
     recipientAddress: '456 Recipient Ave',
     assignedAgentId: 'agent-id',
     status: ParcelStatus.REGISTERED,
+    retryQueued: false,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -59,6 +63,7 @@ describe('ParcelsService', () => {
       findById: jest.fn(),
       findAll: jest.fn(),
       assign: jest.fn(),
+      setRetryQueued: jest.fn(),
     };
 
     usersRepository = {
@@ -202,6 +207,54 @@ describe('ParcelsService', () => {
 
     await expect(service.findById('missing-id', admin)).rejects.toBeInstanceOf(
       NotFoundException,
+    );
+  });
+
+  it('lists queued retries for admins across all agents', async () => {
+    parcelsRepository.findAll.mockResolvedValue([
+      { ...parcel, status: ParcelStatus.FAILED_ATTEMPT, retryQueued: true },
+    ]);
+
+    await expect(service.findRetryQueue(admin)).resolves.toHaveLength(1);
+    expect(parcelsRepository.findAll).toHaveBeenCalledWith({
+      retryQueued: true,
+      assignedAgentId: undefined,
+    });
+  });
+
+  it('lists queued retries for agents scoped to their assignments', async () => {
+    parcelsRepository.findAll.mockResolvedValue([]);
+
+    await service.findRetryQueue(agent);
+
+    expect(parcelsRepository.findAll).toHaveBeenCalledWith({
+      retryQueued: true,
+      assignedAgentId: agent.id,
+    });
+  });
+
+  it('re-queues a failed parcel for admin retry management', async () => {
+    parcelsRepository.findById.mockResolvedValue({
+      ...parcel,
+      status: ParcelStatus.FAILED_ATTEMPT,
+      retryQueued: false,
+    });
+    parcelsRepository.setRetryQueued.mockResolvedValue({
+      ...parcel,
+      status: ParcelStatus.FAILED_ATTEMPT,
+      retryQueued: true,
+    });
+
+    await expect(service.requeue(parcel.id)).resolves.toMatchObject({
+      retryQueued: true,
+    });
+  });
+
+  it('rejects re-queue when the parcel is not in failed status', async () => {
+    parcelsRepository.findById.mockResolvedValue(parcel);
+
+    await expect(service.requeue(parcel.id)).rejects.toBeInstanceOf(
+      BadRequestException,
     );
   });
 });

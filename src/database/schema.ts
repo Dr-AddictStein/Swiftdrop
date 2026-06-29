@@ -49,6 +49,7 @@ export const parcels = pgTable('parcels', {
   recipientAddress: text('recipient_address').notNull(),
   assignedAgentId: uuid('assigned_agent_id').references(() => users.id),
   status: parcelStatusEnum('status').notNull().default(ParcelStatus.REGISTERED),
+  retryQueued: boolean('retry_queued').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),

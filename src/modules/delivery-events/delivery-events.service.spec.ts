@@ -1,4 +1,8 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { InvalidStatusTransitionException } from '../../common/exceptions/invalid-status-transition.exception';
 import { ParcelStatus } from '../../common/enums/parcel-status.enum';
@@ -41,6 +45,7 @@ describe('DeliveryEventsService', () => {
     recipientAddress: '456 Ave',
     assignedAgentId: 'agent-id',
     status: ParcelStatus.REGISTERED,
+    retryQueued: false,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
@@ -173,5 +178,96 @@ describe('DeliveryEventsService', () => {
     await expect(
       service.getTimeline('missing-id', admin),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('queues a parcel for retry when delivery fails', async () => {
+    const failedParcel = {
+      ...parcel,
+      status: ParcelStatus.OUT_FOR_DELIVERY,
+      retryQueued: false,
+    };
+    mockParcelLookup(failedParcel);
+
+    const failedEvent = {
+      ...event,
+      status: ParcelStatus.FAILED_ATTEMPT,
+    };
+    const updatedParcel = {
+      ...failedParcel,
+      status: ParcelStatus.FAILED_ATTEMPT,
+      retryQueued: true,
+    };
+
+    const setMock = jest.fn().mockReturnValue({
+      where: jest.fn().mockReturnValue({
+        returning: jest.fn().mockResolvedValue([updatedParcel]),
+      }),
+    });
+    const tx = {
+      insert: jest.fn().mockReturnValue({
+        values: jest.fn().mockReturnValue({
+          returning: jest.fn().mockResolvedValue([failedEvent]),
+        }),
+      }),
+      update: jest.fn().mockReturnValue({ set: setMock }),
+    };
+
+    drizzleService.db.transaction.mockImplementation(
+      (callback: (transaction: typeof tx) => Promise<unknown>) => callback(tx),
+    );
+
+    await service.recordStatusChange(
+      parcel.id,
+      ParcelStatus.FAILED_ATTEMPT,
+      agent,
+    );
+
+    expect(setMock).toHaveBeenCalledWith({
+      status: ParcelStatus.FAILED_ATTEMPT,
+      retryQueued: true,
+    });
+  });
+
+  it('dispatches a queued retry back out for delivery', async () => {
+    mockParcelLookup({
+      ...parcel,
+      status: ParcelStatus.FAILED_ATTEMPT,
+      retryQueued: true,
+    });
+
+    const dispatchSpy = jest
+      .spyOn(service, 'recordStatusChange')
+      .mockResolvedValue({
+        parcel: {
+          ...parcel,
+          status: ParcelStatus.OUT_FOR_DELIVERY,
+          retryQueued: false,
+        },
+        event: {
+          ...event,
+          status: ParcelStatus.OUT_FOR_DELIVERY,
+        },
+      });
+
+    await service.dispatchRetry(parcel.id, agent, 'Retry attempt');
+
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      parcel.id,
+      ParcelStatus.OUT_FOR_DELIVERY,
+      agent,
+      'Retry attempt',
+    );
+  });
+
+  it('rejects retry dispatch when the parcel is not queued', async () => {
+    mockParcelLookup({
+      ...parcel,
+      status: ParcelStatus.FAILED_ATTEMPT,
+      retryQueued: false,
+    });
+
+    await expect(
+      service.dispatchRetry(parcel.id, agent),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

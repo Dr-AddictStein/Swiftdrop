@@ -10,6 +10,7 @@ export interface ParcelFilters {
   status?: ParcelStatus;
   sender?: string;
   assignedAgentId?: string;
+  retryQueued?: boolean;
 }
 
 @Injectable()
@@ -62,6 +63,18 @@ export class ParcelsRepository {
       .then((rows) => rows[0] ?? null);
   }
 
+  setRetryQueued(
+    id: string,
+    retryQueued: boolean,
+  ): Promise<ParcelRecord | null> {
+    return this.drizzleService.db
+      .update(parcels)
+      .set({ retryQueued })
+      .where(eq(parcels.id, id))
+      .returning()
+      .then((rows) => rows[0] ?? null);
+  }
+
   private buildFilterConditions(filters: ParcelFilters): SQL[] {
     const conditions: SQL[] = [];
 
@@ -75,6 +88,10 @@ export class ParcelsRepository {
 
     if (filters.assignedAgentId) {
       conditions.push(eq(parcels.assignedAgentId, filters.assignedAgentId));
+    }
+
+    if (filters.retryQueued !== undefined) {
+      conditions.push(eq(parcels.retryQueued, filters.retryQueued));
     }
 
     return conditions;

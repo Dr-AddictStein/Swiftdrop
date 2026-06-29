@@ -101,6 +101,36 @@ export class ParcelsService {
     return updated;
   }
 
+  findRetryQueue(requester: AuthenticatedUser) {
+    return this.parcelsRepository.findAll({
+      retryQueued: true,
+      assignedAgentId:
+        requester.role === UserRole.DELIVERY_AGENT ? requester.id : undefined,
+    });
+  }
+
+  async requeue(id: string) {
+    const parcel = await this.parcelsRepository.findById(id);
+
+    if (!parcel) {
+      throw new NotFoundException(`Parcel with id '${id}' not found`);
+    }
+
+    if (parcel.status !== ParcelStatus.FAILED_ATTEMPT) {
+      throw new BadRequestException(
+        'Only parcels in FAILED_ATTEMPT status can be re-queued',
+      );
+    }
+
+    const updated = await this.parcelsRepository.setRetryQueued(id, true);
+
+    if (!updated) {
+      throw new NotFoundException(`Parcel with id '${id}' not found`);
+    }
+
+    return updated;
+  }
+
   private assertCanViewParcel(
     parcel: { assignedAgentId: string | null },
     requester: AuthenticatedUser,
