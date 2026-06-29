@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { RealtimeProvider } from './context/RealtimeContext';
 import { AppLayout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
 import { AdminOverviewPage } from './pages/admin/AdminOverviewPage';
@@ -74,7 +75,9 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppRoutes />
+      <RealtimeProvider>
+        <AppRoutes />
+      </RealtimeProvider>
     </AuthProvider>
   );
 }

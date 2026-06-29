@@ -1,18 +1,27 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import * as bcrypt from 'bcrypt';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { UsersService } from './users.service';
 import { UsersRepository } from './users.repository';
 
+jest.mock('bcrypt', () => ({
+  hash: jest.fn(),
+}));
+
 describe('UsersService', () => {
   let service: UsersService;
   let usersRepository: jest.Mocked<
-    Pick<UsersRepository, 'findAll' | 'findById' | 'updateAvailability'>
+    Pick<
+      UsersRepository,
+      'findAll' | 'findById' | 'updateAvailability' | 'findByEmail' | 'create'
+    >
   >;
 
   const admin: AuthenticatedUser = {
@@ -42,6 +51,8 @@ describe('UsersService', () => {
       findAll: jest.fn(),
       findById: jest.fn(),
       updateAvailability: jest.fn(),
+      findByEmail: jest.fn(),
+      create: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -58,6 +69,41 @@ describe('UsersService', () => {
     usersRepository.findAll.mockResolvedValue([agentUser]);
 
     await expect(service.findAll()).resolves.toEqual([agentUser]);
+  });
+
+  it('creates a delivery agent with a hashed password', async () => {
+    usersRepository.findByEmail.mockResolvedValue(null);
+    (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
+    usersRepository.create.mockResolvedValue(agentUser);
+
+    await expect(
+      service.createDeliveryAgent({
+        name: 'Delivery Agent',
+        email: 'agent@swiftdrop.com',
+        password: 'password123',
+      }),
+    ).resolves.toEqual(agentUser);
+
+    expect(bcrypt.hash).toHaveBeenCalledWith('password123', 10);
+    expect(usersRepository.create).toHaveBeenCalledWith({
+      name: 'Delivery Agent',
+      email: 'agent@swiftdrop.com',
+      passwordHash: 'hashed-password',
+      role: UserRole.DELIVERY_AGENT,
+      isAvailable: true,
+    });
+  });
+
+  it('rejects duplicate email when creating a delivery agent', async () => {
+    usersRepository.findByEmail.mockResolvedValue(agentUser);
+
+    await expect(
+      service.createDeliveryAgent({
+        name: 'Another Agent',
+        email: 'agent@swiftdrop.com',
+        password: 'password123',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('allows admin to view any user', async () => {

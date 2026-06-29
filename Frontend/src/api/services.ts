@@ -21,6 +21,22 @@ export function fetchUsers(token: string) {
   return apiRequest<User[]>('/users', { token });
 }
 
+export function createDeliveryAgent(
+  token: string,
+  data: {
+    name: string;
+    email: string;
+    password: string;
+    isAvailable?: boolean;
+  },
+) {
+  return apiRequest<User>('/users', {
+    method: 'POST',
+    token,
+    body: data,
+  });
+}
+
 export function fetchUser(token: string, id: string) {
   return apiRequest<User>(`/users/${id}`, { token });
 }

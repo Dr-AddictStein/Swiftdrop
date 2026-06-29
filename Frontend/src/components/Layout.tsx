@@ -1,5 +1,6 @@
 import { NavLink, Outlet, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useRealtime } from '../context/RealtimeContext';
 import { Button } from './Modal';
 
 const ADMIN_NAV = [
@@ -19,6 +20,7 @@ const AGENT_NAV = [
 
 export function AppLayout() {
   const { user, logout } = useAuth();
+  const { connected } = useRealtime();
   const nav = user?.role === 'ADMIN' ? ADMIN_NAV : AGENT_NAV;
 
   if (!user) return <Navigate to="/login" replace />;
@@ -61,6 +63,12 @@ export function AppLayout() {
       </aside>
 
       <main className="main-content">
+        {connected && (
+          <div className="live-indicator" title="Live updates connected">
+            <span className="live-indicator__dot" />
+            Live
+          </div>
+        )}
         <Outlet />
       </main>
     </div>

@@ -1,11 +1,11 @@
-import { type FormEvent, useEffect, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useRealtimeRefresh } from '../context/RealtimeContext';
 import {
   assignParcel,
   createParcel,
   fetchParcels,
-  fetchUsers,
 } from '../api/services';
 import { ApiRequestError } from '../api';
 import {
@@ -17,14 +17,17 @@ import {
 } from '../components/Common';
 import { StatusBadge } from '../components/StatusBadge';
 import { Button, Modal } from '../components/Modal';
-import type { Parcel, User } from '../types';
+import { AgentInfo } from '../components/AgentInfo';
+import { useDeliveryAgents } from '../hooks/useDeliveryAgents';
+import { resolveAgent } from '../utils/agents';
+import type { Parcel } from '../types';
 import { PARCEL_STATUSES } from '../types';
 
 export function ParcelsPage() {
   const { token, user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
+  const agents = useDeliveryAgents();
   const [parcels, setParcels] = useState<Parcel[]>([]);
-  const [agents, setAgents] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -41,30 +44,33 @@ export function ParcelsPage() {
     recipientAddress: '',
   });
 
-  const load = async () => {
-    if (!token) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetchParcels(token, {
-        status: statusFilter || undefined,
-        sender: senderFilter || undefined,
-      });
-      setParcels(data);
-      if (isAdmin) {
-        const users = await fetchUsers(token);
-        setAgents(users.filter((u) => u.role === 'DELIVERY_AGENT'));
+  const load = useCallback(
+    async (silent = false) => {
+      if (!token) return;
+      if (!silent) setLoading(true);
+      setError(null);
+      try {
+        const data = await fetchParcels(token, {
+          status: statusFilter || undefined,
+          sender: senderFilter || undefined,
+        });
+        setParcels(data);
+      } catch (err) {
+        setError(err instanceof ApiRequestError ? err.message : 'Failed to load parcels');
+      } finally {
+        if (!silent) setLoading(false);
       }
-    } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'Failed to load parcels');
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [token, statusFilter, senderFilter],
+  );
 
   useEffect(() => {
     void load();
-  }, [token, statusFilter, senderFilter]);
+  }, [load]);
+
+  useRealtimeRefresh(() => {
+    void load(true);
+  }, [load]);
 
   const handleCreate = async (e: FormEvent) => {
     e.preventDefault();
@@ -180,7 +186,7 @@ export function ParcelsPage() {
                   </td>
                   {isAdmin && (
                     <td>
-                      {agents.find((a) => a.id === p.assignedAgentId)?.name ?? '—'}
+                      <AgentInfo agent={resolveAgent(agents, p.assignedAgentId)} />
                     </td>
                   )}
                   <td className="actions-cell">

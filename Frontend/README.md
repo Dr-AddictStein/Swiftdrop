@@ -1,12 +1,6 @@
 # Swiftdrop Dashboard
 
-A React web app for **Swiftdrop** — a last-mile delivery management portal for admins and delivery agents.
-
-## Prerequisites
-
-- Node.js 20+
-- Swiftdrop backend running on `http://localhost:3000`
-- Database migrated and seeded (`npm run db:seed` from project root)
+React web app for **Swiftdrop** — role-based admin and delivery agent portals. See the [root README](../README.md) for full project setup.
 
 ## Setup
 
@@ -17,7 +11,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173).
+Open [http://localhost:5173](http://localhost:5173). Backend must be running on `http://localhost:3000`.
 
 ## Environment
 
@@ -35,26 +29,25 @@ Open [http://localhost:5173](http://localhost:5173).
 
 ## Admin portal
 
-- **Overview** — parcel counts, agent performance snapshot, retry queue size
-- **Parcels** — register parcels, filter list, assign agents
-- **Users** — view team, toggle agent availability
-- **Retry Queue** — manage failed deliveries
-- **Reports** — full agent performance metrics
+- **Overview** — stats, recent parcels with assigned agents, agent performance, retry queue
+- **Parcels** — register, filter, assign agents; see who is handling each delivery
+- **Users** — create delivery agents (name, email, password), toggle availability
+- **Retry Queue** — failed deliveries with assigned agent, re-queue
+- **Reports** — agent performance metrics
+
+Parcel detail shows a **Delivery Agent** banner and timeline attribution (`by Agent Name`) for each status change.
 
 ## Agent portal
 
-- **My Deliveries** — active tasks and stats
-- **Parcels** — view assigned parcels
-- **Parcel detail** — update status through the delivery workflow, view timeline
-- **Retry Queue** — dispatch queued retries
-- **Profile** — toggle availability for new assignments
+- **Dashboard** — active delivery stats
+- **My Deliveries** — assigned parcel list
+- **Parcel detail** — status workflow, notes, timeline
+- **Retry Queue** — dispatch retries
+- **Profile** — availability toggle
 
-## Typical workflow
+## Real-time updates
 
-1. **Admin** registers a parcel and assigns it to an available agent
-2. **Agent** picks up → out for delivery → delivered (or failed attempt)
-3. Failed parcels enter the **retry queue**; agent dispatches retry
-4. **Admin** reviews agent reports on the Reports page
+The dashboard maintains an SSE connection to `/realtime/stream`. Assignments and status changes appear automatically — no refresh button needed. A **Live** indicator shows when connected.
 
 ## Scripts
 

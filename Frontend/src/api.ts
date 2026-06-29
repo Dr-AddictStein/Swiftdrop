@@ -62,3 +62,7 @@ export async function apiRequest<T>(
 export function getApiUrl(): string {
   return API_URL;
 }
+
+export function getApiKey(): string {
+  return API_KEY;
+}

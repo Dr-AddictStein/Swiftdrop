@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useRealtimeRefresh } from '../../context/RealtimeContext';
 import { fetchParcels, fetchRetryQueue } from '../../api/services';
 import { ApiRequestError } from '../../api';
 import { Alert, Card, LoadingState, PageHeader } from '../../components/Common';
@@ -15,9 +16,10 @@ export function AgentOverviewPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!token) return;
-    void (async () => {
+  const load = useCallback(
+    async (silent = false) => {
+      if (!token) return;
+      if (!silent) setLoading(true);
       try {
         const [all, retry] = await Promise.all([
           fetchParcels(token),
@@ -30,10 +32,19 @@ export function AgentOverviewPage() {
           err instanceof ApiRequestError ? err.message : 'Failed to load deliveries',
         );
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
-    })();
-  }, [token]);
+    },
+    [token],
+  );
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useRealtimeRefresh(() => {
+    void load(true);
+  }, [load]);
 
   if (loading) return <LoadingState />;
 

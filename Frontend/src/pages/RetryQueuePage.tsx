@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useRealtimeRefresh } from '../context/RealtimeContext';
 import {
   dispatchRetry,
   fetchRetryQueue,
@@ -16,31 +17,42 @@ import {
 } from '../components/Common';
 import { StatusBadge } from '../components/StatusBadge';
 import { Button } from '../components/Modal';
+import { AgentInfo } from '../components/AgentInfo';
+import { useDeliveryAgents } from '../hooks/useDeliveryAgents';
+import { resolveAgent } from '../utils/agents';
 import type { Parcel } from '../types';
 
 export function RetryQueuePage() {
   const { token, user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
+  const agents = useDeliveryAgents();
   const [parcels, setParcels] = useState<Parcel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const load = async () => {
-    if (!token) return;
-    setLoading(true);
-    try {
-      setParcels(await fetchRetryQueue(token));
-    } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'Failed to load retry queue');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const load = useCallback(
+    async (silent = false) => {
+      if (!token) return;
+      if (!silent) setLoading(true);
+      try {
+        setParcels(await fetchRetryQueue(token));
+      } catch (err) {
+        setError(err instanceof ApiRequestError ? err.message : 'Failed to load retry queue');
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [token],
+  );
 
   useEffect(() => {
     void load();
-  }, [token]);
+  }, [load]);
+
+  useRealtimeRefresh(() => {
+    void load(true);
+  }, [load]);
 
   const handleDispatch = async (parcelId: string) => {
     if (!token) return;
@@ -96,6 +108,7 @@ export function RetryQueuePage() {
               <tr>
                 <th>Tracking #</th>
                 <th>Recipient</th>
+                {isAdmin && <th>Assigned Agent</th>}
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -105,6 +118,11 @@ export function RetryQueuePage() {
                 <tr key={p.id}>
                   <td>{p.trackingNumber}</td>
                   <td>{p.recipientName}</td>
+                  {isAdmin && (
+                    <td>
+                      <AgentInfo agent={resolveAgent(agents, p.assignedAgentId)} />
+                    </td>
+                  )}
                   <td>
                     <StatusBadge status={p.status} />
                   </td>

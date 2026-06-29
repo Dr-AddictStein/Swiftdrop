@@ -1,10 +1,11 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
   ParseUUIDPipe,
   Patch,
-  Body,
+  Post,
   UseGuards,
 } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -12,6 +13,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import type { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
+import { CreateDeliveryAgentDto } from './dto/create-delivery-agent.dto';
 import { UpdateAvailabilityDto } from './dto/update-availability.dto';
 import { UsersService } from './users.service';
 
@@ -19,6 +21,12 @@ import { UsersService } from './users.service';
 @UseGuards(RolesGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  @Post()
+  @Roles(UserRole.ADMIN)
+  createDeliveryAgent(@Body() dto: CreateDeliveryAgentDto) {
+    return this.usersService.createDeliveryAgent(dto);
+  }
 
   @Get()
   @Roles(UserRole.ADMIN)

@@ -9,6 +9,7 @@ import { ParcelStatus } from '../../common/enums/parcel-status.enum';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { DrizzleService } from '../../database/drizzle.service';
+import { RealtimeService } from '../realtime/realtime.service';
 import { DeliveryEventsService } from './delivery-events.service';
 import { DeliveryEventsRepository } from './delivery-events.repository';
 
@@ -78,6 +79,10 @@ describe('DeliveryEventsService', () => {
         {
           provide: DeliveryEventsRepository,
           useValue: deliveryEventsRepository,
+        },
+        {
+          provide: RealtimeService,
+          useValue: { emitParcelUpdate: jest.fn() },
         },
       ],
     }).compile();

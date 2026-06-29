@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { fetchUsers, updateAvailability } from '../../api/services';
+import { createDeliveryAgent, fetchUsers, updateAvailability } from '../../api/services';
 import { ApiRequestError } from '../../api';
 import {
   Alert,
@@ -9,8 +9,15 @@ import {
   LoadingState,
   PageHeader,
 } from '../../components/Common';
-import { Button } from '../../components/Modal';
+import { Button, Modal } from '../../components/Modal';
 import type { User } from '../../types';
+
+const EMPTY_FORM = {
+  name: '',
+  email: '',
+  password: '',
+  isAvailable: true,
+};
 
 export function UsersPage() {
   const { token } = useAuth();
@@ -18,6 +25,8 @@ export function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState(EMPTY_FORM);
 
   const load = async () => {
     if (!token) return;
@@ -48,11 +57,30 @@ export function UsersPage() {
     }
   };
 
+  const handleCreate = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!token) return;
+    try {
+      const agent = await createDeliveryAgent(token, createForm);
+      setShowCreate(false);
+      setCreateForm(EMPTY_FORM);
+      setSuccess(`${agent.name} created. They can sign in with ${agent.email}.`);
+      await load();
+    } catch (err) {
+      setError(
+        err instanceof ApiRequestError ? err.message : 'Failed to create delivery agent',
+      );
+    }
+  };
+
   return (
     <div>
       <PageHeader
         title="Users"
         subtitle="Manage admin and delivery agent accounts."
+        action={
+          <Button onClick={() => setShowCreate(true)}>Add Delivery Agent</Button>
+        }
       />
       {error && <Alert type="error" message={error} onClose={() => setError(null)} />}
       {success && (
@@ -111,6 +139,61 @@ export function UsersPage() {
           </table>
         )}
       </Card>
+
+      <Modal
+        open={showCreate}
+        title="Add Delivery Agent"
+        onClose={() => setShowCreate(false)}
+      >
+        <form className="form-stack" onSubmit={handleCreate}>
+          <label>
+            Full name
+            <input
+              required
+              value={createForm.name}
+              onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+              placeholder="Jane Smith"
+            />
+          </label>
+          <label>
+            Email
+            <input
+              type="email"
+              required
+              value={createForm.email}
+              onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+              placeholder="agent@swiftdrop.com"
+            />
+          </label>
+          <label>
+            Password
+            <input
+              type="password"
+              required
+              minLength={6}
+              value={createForm.password}
+              onChange={(e) =>
+                setCreateForm({ ...createForm, password: e.target.value })
+              }
+              placeholder="Minimum 6 characters"
+              autoComplete="new-password"
+            />
+          </label>
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={createForm.isAvailable}
+              onChange={(e) =>
+                setCreateForm({ ...createForm, isAvailable: e.target.checked })
+              }
+            />
+            Available for parcel assignments
+          </label>
+          <div className="form-actions">
+            <Button type="submit">Create Agent</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

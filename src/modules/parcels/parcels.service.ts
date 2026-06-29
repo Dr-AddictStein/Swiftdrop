@@ -8,6 +8,7 @@ import { ParcelStatus } from '../../common/enums/parcel-status.enum';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { UsersRepository } from '../users/users.repository';
+import { RealtimeService } from '../realtime/realtime.service';
 import { AssignParcelDto } from './dto/assign-parcel.dto';
 import { CreateParcelDto } from './dto/create-parcel.dto';
 import { ListParcelsQueryDto } from './dto/list-parcels-query.dto';
@@ -19,18 +20,23 @@ export class ParcelsService {
   constructor(
     private readonly parcelsRepository: ParcelsRepository,
     private readonly usersRepository: UsersRepository,
+    private readonly realtimeService: RealtimeService,
   ) {}
 
-  create(dto: CreateParcelDto) {
+  async create(dto: CreateParcelDto) {
     const trackingNumber = dto.trackingNumber ?? generateTrackingNumber();
 
-    return this.parcelsRepository.create({
+    const parcel = await this.parcelsRepository.create({
       trackingNumber,
       senderName: dto.senderName,
       senderAddress: dto.senderAddress,
       recipientName: dto.recipientName,
       recipientAddress: dto.recipientAddress,
     });
+
+    this.realtimeService.emitParcelUpdate(parcel);
+
+    return parcel;
   }
 
   async findAll(query: ListParcelsQueryDto, requester: AuthenticatedUser) {
@@ -98,6 +104,8 @@ export class ParcelsService {
       throw new NotFoundException(`Parcel with id '${id}' not found`);
     }
 
+    this.realtimeService.emitParcelUpdate(updated);
+
     return updated;
   }
 
@@ -127,6 +135,8 @@ export class ParcelsService {
     if (!updated) {
       throw new NotFoundException(`Parcel with id '${id}' not found`);
     }
+
+    this.realtimeService.emitParcelUpdate(updated);
 
     return updated;
   }

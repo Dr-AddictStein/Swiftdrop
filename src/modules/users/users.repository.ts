@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
+import { UserRole } from '../../common/enums/user-role.enum';
 import { DrizzleService } from '../../database/drizzle.service';
 import { users } from '../../database/schema';
 
@@ -62,5 +63,19 @@ export class UsersRepository {
       .where(eq(users.id, id))
       .returning(userSelectFields)
       .then((rows) => rows[0] ?? null);
+  }
+
+  create(data: {
+    name: string;
+    email: string;
+    passwordHash: string;
+    role: UserRole;
+    isAvailable: boolean;
+  }): Promise<SafeUser> {
+    return this.drizzleService.db
+      .insert(users)
+      .values(data)
+      .returning(userSelectFields)
+      .then((rows) => rows[0]);
   }
 }

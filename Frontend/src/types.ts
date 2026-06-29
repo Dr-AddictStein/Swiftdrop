@@ -81,3 +81,10 @@ export const PARCEL_STATUSES: ParcelStatus[] = [
   'DELIVERED',
   'FAILED_ATTEMPT',
 ];
+
+export interface ParcelUpdatedEvent {
+  type: 'parcel.updated';
+  parcel: Parcel;
+}
+
+export type RealtimeEvent = ParcelUpdatedEvent | { type: 'heartbeat' };

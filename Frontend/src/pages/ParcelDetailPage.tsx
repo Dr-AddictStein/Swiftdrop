@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useRealtimeRefresh } from '../context/RealtimeContext';
 import {
   dispatchRetry,
   fetchParcel,
   fetchParcelHistory,
-  fetchUsers,
   requeueParcel,
   updateParcelStatus,
 } from '../api/services';
@@ -18,7 +18,10 @@ import {
 } from '../components/Common';
 import { StatusBadge } from '../components/StatusBadge';
 import { Button } from '../components/Modal';
-import type { DeliveryEvent, Parcel, User } from '../types';
+import { AgentInfo } from '../components/AgentInfo';
+import { useDeliveryAgents } from '../hooks/useDeliveryAgents';
+import { getAgentActivityLabel, resolveAgent } from '../utils/agents';
+import type { DeliveryEvent, Parcel } from '../types';
 import { formatDate, getNextStatuses, STATUS_LABELS } from '../utils/status';
 
 export function ParcelDetailPage() {
@@ -26,40 +29,45 @@ export function ParcelDetailPage() {
   const { token, user } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
   const isAgent = user?.role === 'DELIVERY_AGENT';
+  const agents = useDeliveryAgents();
 
   const [parcel, setParcel] = useState<Parcel | null>(null);
   const [history, setHistory] = useState<DeliveryEvent[]>([]);
-  const [agents, setAgents] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [remarks, setRemarks] = useState('');
 
-  const load = async () => {
-    if (!token || !id) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const [p, h] = await Promise.all([
-        fetchParcel(token, id),
-        fetchParcelHistory(token, id),
-      ]);
-      setParcel(p);
-      setHistory(h);
-      if (isAdmin) {
-        const users = await fetchUsers(token);
-        setAgents(users.filter((u) => u.role === 'DELIVERY_AGENT'));
+  const load = useCallback(
+    async (silent = false) => {
+      if (!token || !id) return;
+      if (!silent) setLoading(true);
+      setError(null);
+      try {
+        const [p, h] = await Promise.all([
+          fetchParcel(token, id),
+          fetchParcelHistory(token, id),
+        ]);
+        setParcel(p);
+        setHistory(h);
+      } catch (err) {
+        setError(err instanceof ApiRequestError ? err.message : 'Failed to load parcel');
+      } finally {
+        if (!silent) setLoading(false);
       }
-    } catch (err) {
-      setError(err instanceof ApiRequestError ? err.message : 'Failed to load parcel');
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [token, id],
+  );
 
   useEffect(() => {
     void load();
-  }, [token, id]);
+  }, [load]);
+
+  useRealtimeRefresh((event) => {
+    if (event.type === 'parcel.updated' && event.parcel.id === id) {
+      void load(true);
+    }
+  }, [load, id]);
 
   const handleStatusUpdate = async (status: Parcel['status']) => {
     if (!token || !id) return;
@@ -99,8 +107,7 @@ export function ParcelDetailPage() {
   if (loading) return <LoadingState />;
   if (!parcel) return <Alert type="error" message={error ?? 'Parcel not found'} />;
 
-  const agentName =
-    agents.find((a) => a.id === parcel.assignedAgentId)?.name ?? parcel.assignedAgentId;
+  const assignedAgent = resolveAgent(agents, parcel.assignedAgentId);
   const nextStatuses = isAgent ? getNextStatuses(parcel.status) : [];
 
   return (
@@ -143,13 +150,19 @@ export function ParcelDetailPage() {
                 <span className="muted">{parcel.recipientAddress}</span>
               </dd>
             </div>
-            {isAdmin && (
-              <div>
-                <dt>Assigned Agent</dt>
-                <dd>{agentName ?? 'Not assigned'}</dd>
-              </div>
-            )}
           </dl>
+
+          {isAdmin && (
+            <div className="assigned-agent-banner">
+              <span className="assigned-agent-banner__label">Delivery Agent</span>
+              <AgentInfo agent={assignedAgent} fallback="Not assigned yet" />
+              {assignedAgent && (
+                <p className="assigned-agent-banner__activity muted">
+                  {getAgentActivityLabel(parcel.status)}
+                </p>
+              )}
+            </div>
+          )}
 
           {isAdmin && parcel.status === 'FAILED_ATTEMPT' && !parcel.retryQueued && (
             <div className="action-bar">
@@ -206,16 +219,25 @@ export function ParcelDetailPage() {
             <p className="muted">No delivery events recorded yet.</p>
           ) : (
             <ul className="timeline">
-              {history.map((event) => (
-                <li key={event.id}>
-                  <div className="timeline__dot" />
-                  <div>
-                    <strong>{STATUS_LABELS[event.status]}</strong>
-                    <span className="muted">{formatDate(event.createdAt)}</span>
-                    {event.remarks && <p>{event.remarks}</p>}
-                  </div>
-                </li>
-              ))}
+              {history.map((event) => {
+                const eventAgent = resolveAgent(agents, event.createdBy);
+                return (
+                  <li key={event.id}>
+                    <div className="timeline__dot" />
+                    <div>
+                      <strong>{STATUS_LABELS[event.status]}</strong>
+                      <span className="muted">{formatDate(event.createdAt)}</span>
+                      {isAdmin && (
+                        <span className="timeline-agent muted">
+                          by {eventAgent?.name ?? 'Unknown agent'}
+                          {eventAgent?.email ? ` (${eventAgent.email})` : ''}
+                        </span>
+                      )}
+                      {event.remarks && <p>{event.remarks}</p>}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </Card>

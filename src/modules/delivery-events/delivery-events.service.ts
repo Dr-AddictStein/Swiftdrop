@@ -13,12 +13,14 @@ import { DrizzleService } from '../../database/drizzle.service';
 import { deliveryEvents, parcels } from '../../database/schema';
 import { CreateDeliveryEventDto } from './dto/create-delivery-event.dto';
 import { DeliveryEventsRepository } from './delivery-events.repository';
+import { RealtimeService } from '../realtime/realtime.service';
 
 @Injectable()
 export class DeliveryEventsService {
   constructor(
     private readonly drizzleService: DrizzleService,
     private readonly deliveryEventsRepository: DeliveryEventsRepository,
+    private readonly realtimeService: RealtimeService,
   ) {}
 
   recordStatusChange(
@@ -116,10 +118,14 @@ export class DeliveryEventsService {
         .where(eq(parcels.id, input.parcelId))
         .returning();
 
-      return {
+      const result = {
         parcel: updatedParcel,
         event,
       };
+
+      this.realtimeService.emitParcelUpdate(updatedParcel);
+
+      return result;
     });
   }
 

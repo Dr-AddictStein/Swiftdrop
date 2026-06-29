@@ -8,6 +8,7 @@ import { ParcelStatus } from '../../common/enums/parcel-status.enum';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { UsersRepository } from '../users/users.repository';
+import { RealtimeService } from '../realtime/realtime.service';
 import { ParcelsService } from './parcels.service';
 import { ParcelsRepository } from './parcels.repository';
 
@@ -75,6 +76,10 @@ describe('ParcelsService', () => {
         ParcelsService,
         { provide: ParcelsRepository, useValue: parcelsRepository },
         { provide: UsersRepository, useValue: usersRepository },
+        {
+          provide: RealtimeService,
+          useValue: { emitParcelUpdate: jest.fn() },
+        },
       ],
     }).compile();
 

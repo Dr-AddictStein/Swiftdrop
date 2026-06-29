@@ -8,6 +8,7 @@ import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ParcelsModule } from './modules/parcels/parcels.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { RealtimeModule } from './modules/realtime/realtime.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     }),
     CommonModule,
     DatabaseModule,
+    RealtimeModule,
     AuthModule,
     ParcelsModule,
     ReportsModule,

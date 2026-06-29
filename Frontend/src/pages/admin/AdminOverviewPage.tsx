@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useRealtimeRefresh } from '../../context/RealtimeContext';
 import {
   fetchAgentReports,
   fetchParcels,
@@ -10,19 +11,24 @@ import { ApiRequestError } from '../../api';
 import { Alert, Card, LoadingState, PageHeader } from '../../components/Common';
 import { StatusBadge } from '../../components/StatusBadge';
 import { Button } from '../../components/Modal';
+import { AgentInfo } from '../../components/AgentInfo';
+import { useDeliveryAgents } from '../../hooks/useDeliveryAgents';
+import { resolveAgent } from '../../utils/agents';
 import type { AgentReport, Parcel } from '../../types';
 
 export function AdminOverviewPage() {
   const { token } = useAuth();
+  const agents = useDeliveryAgents();
   const [reports, setReports] = useState<AgentReport[]>([]);
   const [parcels, setParcels] = useState<Parcel[]>([]);
   const [retryCount, setRetryCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!token) return;
-    void (async () => {
+  const load = useCallback(
+    async (silent = false) => {
+      if (!token) return;
+      if (!silent) setLoading(true);
       try {
         const [reportData, parcelData, retry] = await Promise.all([
           fetchAgentReports(token),
@@ -37,10 +43,19 @@ export function AdminOverviewPage() {
           err instanceof ApiRequestError ? err.message : 'Failed to load overview',
         );
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
-    })();
-  }, [token]);
+    },
+    [token],
+  );
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useRealtimeRefresh(() => {
+    void load(true);
+  }, [load]);
 
   if (loading) return <LoadingState />;
 
@@ -89,6 +104,7 @@ export function AdminOverviewPage() {
                 <tr>
                   <th>Tracking</th>
                   <th>Recipient</th>
+                  <th>Assigned Agent</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -99,6 +115,9 @@ export function AdminOverviewPage() {
                       <Link to={`/parcels/${p.id}`}>{p.trackingNumber}</Link>
                     </td>
                     <td>{p.recipientName}</td>
+                    <td>
+                      <AgentInfo agent={resolveAgent(agents, p.assignedAgentId)} />
+                    </td>
                     <td>
                       <StatusBadge status={p.status} />
                     </td>

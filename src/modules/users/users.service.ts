@@ -1,11 +1,14 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { UserRole } from '../../common/enums/user-role.enum';
+import { CreateDeliveryAgentDto } from './dto/create-delivery-agent.dto';
 import { UpdateAvailabilityDto } from './dto/update-availability.dto';
 import { UsersRepository } from './users.repository';
 
@@ -15,6 +18,24 @@ export class UsersService {
 
   findAll() {
     return this.usersRepository.findAll();
+  }
+
+  async createDeliveryAgent(dto: CreateDeliveryAgentDto) {
+    const existing = await this.usersRepository.findByEmail(dto.email);
+
+    if (existing) {
+      throw new ConflictException('A user with this email already exists');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+
+    return this.usersRepository.create({
+      name: dto.name,
+      email: dto.email,
+      passwordHash,
+      role: UserRole.DELIVERY_AGENT,
+      isAvailable: dto.isAvailable ?? true,
+    });
   }
 
   async findById(id: string, requester: AuthenticatedUser) {
