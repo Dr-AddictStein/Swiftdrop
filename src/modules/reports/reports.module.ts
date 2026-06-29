@@ -1,0 +1,11 @@
+import { Module } from '@nestjs/common';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { ReportsController } from './reports.controller';
+import { ReportsRepository } from './reports.repository';
+import { ReportsService } from './reports.service';
+
+@Module({
+  controllers: [ReportsController],
+  providers: [ReportsRepository, ReportsService, RolesGuard],
+})
+export class ReportsModule {}
