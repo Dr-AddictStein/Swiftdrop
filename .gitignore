@@ -20,3 +20,8 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
+
+# Assignment docs (local reference only)
+Swiftdrop_Backend_Implementation_Guidelines.md
+Backend_Assignment.md
+Backend_Assignment.pdf
