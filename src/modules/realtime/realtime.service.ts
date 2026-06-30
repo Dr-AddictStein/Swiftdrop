@@ -17,19 +17,15 @@ export class RealtimeService {
   stream(user: AuthenticatedUser): Observable<MessageEvent> {
     const parcelEvents$ = this.events$.pipe(
       filter((event) => this.canUserReceive(user, event.parcel)),
-      map(
-        (event): MessageEvent => ({
-          data: event,
-        }),
-      ),
+      map((event): MessageEvent => ({
+        data: event,
+      })),
     );
 
     const heartbeat$ = interval(25_000).pipe(
-      map(
-        (): MessageEvent => ({
-          data: { type: 'heartbeat' },
-        }),
-      ),
+      map((): MessageEvent => ({
+        data: { type: 'heartbeat' },
+      })),
     );
 
     return merge(parcelEvents$, heartbeat$);
