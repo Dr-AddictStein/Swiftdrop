@@ -43,7 +43,7 @@ describe('ReportsService', () => {
       },
     ]);
 
-    await expect(service.getAgentSummaries()).resolves.toEqual([
+    await expect(service.getAgentSummaries('company-1')).resolves.toEqual([
       {
         agentId: 'agent-1',
         agentName: 'Agent One',
@@ -61,6 +61,9 @@ describe('ReportsService', () => {
         averagePickupToDeliveryMinutes: null,
       },
     ]);
+    expect(reportsRepository.getAgentSummaries).toHaveBeenCalledWith(
+      'company-1',
+    );
   });
 
   describe('toSummary', () => {

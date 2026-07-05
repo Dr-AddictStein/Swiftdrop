@@ -3,6 +3,7 @@ import { JwtService } from '@nestjs/jwt';
 import { Test, TestingModule } from '@nestjs/testing';
 import * as bcrypt from 'bcrypt';
 import { UserRole } from '../../common/enums/user-role.enum';
+import { CompaniesService } from '../companies/companies.service';
 import { UsersRepository } from '../users/users.repository';
 import { AuthService } from './auth.service';
 
@@ -17,6 +18,7 @@ describe('AuthService', () => {
     email: 'admin@swiftdrop.com',
     passwordHash: '',
     role: UserRole.ADMIN,
+    companyId: 'company-1',
     isAvailable: true,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -38,6 +40,10 @@ describe('AuthService', () => {
         AuthService,
         { provide: UsersRepository, useValue: usersRepository },
         { provide: JwtService, useValue: jwtService },
+        {
+          provide: CompaniesService,
+          useValue: { createCompanyWithAdmin: jest.fn() },
+        },
       ],
     }).compile();
 
@@ -58,11 +64,13 @@ describe('AuthService', () => {
       name: mockUser.name,
       email: mockUser.email,
       role: mockUser.role,
+      companyId: mockUser.companyId,
     });
     expect(jwtService.sign).toHaveBeenCalledWith({
       sub: mockUser.id,
       email: mockUser.email,
       role: mockUser.role,
+      companyId: mockUser.companyId,
     });
   });
 

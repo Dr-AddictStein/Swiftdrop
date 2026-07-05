@@ -1,0 +1,1592 @@
+openapi: 3.0.3
+
+info:
+  title: Swiftdrop Delivery API
+  version: 1.0.0
+  description: >
+    Multi-tenant last-mile delivery management platform.
+
+
+    Each **company** is an isolated tenant. An **ADMIN** owns a company and
+    manages its delivery agents and parcels. A **DELIVERY_AGENT** belongs to one
+    company and handles the deliveries assigned to them. A **SUPER_ADMIN** is a
+    platform operator who monitors and manages every company.
+
+
+    ## Authentication
+
+    Every endpoint (except the ones tagged as public) requires **two** headers:
+
+    - `x-api-key`: a shared API key (`API_KEY` env var, default `dev-api-key`).
+    - `Authorization: Bearer <JWT>`: obtained from `POST /auth/login` or
+      `POST /auth/register`.
+
+
+    ## Roles
+
+    | Role            | Scope                                                        |
+    |-----------------|-------------------------------------------------------------|
+    | `SUPER_ADMIN`   | Cross-tenant: monitor everything, create companies/agents.  |
+    | `ADMIN`         | Owns one company: manage its agents, parcels, reports.      |
+    | `DELIVERY_AGENT`| Belongs to one company: handle assigned parcels.            |
+
+
+    The role required for each operation is stated in the operation summary,
+    e.g. *(Admin)*. Operations marked *(Any authenticated)* accept any logged-in
+    user, but the service layer still scopes data to the caller's company.
+
+  contact:
+    name: Swiftdrop API Support
+
+servers:
+  - url: http://localhost:3000
+    description: Local development
+
+tags:
+  - name: Auth
+    description: Registration & login (public).
+  - name: Platform (Super Admin)
+    description: Cross-tenant monitoring and provisioning. Requires SUPER_ADMIN.
+  - name: Companies
+    description: Company (tenant) information.
+  - name: Users
+    description: Admin & delivery agent accounts within a company.
+  - name: Parcels
+    description: Parcel registration, assignment and tracking.
+  - name: Delivery Events
+    description: Parcel status changes and delivery timeline.
+  - name: Agents
+    description: Agent lifecycle - company switch and incident reporting.
+  - name: Notifications
+    description: Admin notifications about agent/parcel events.
+  - name: Reports
+    description: Aggregated agent performance metrics.
+  - name: Realtime
+    description: Server-Sent Events stream for live updates.
+  - name: Health
+    description: Service health check.
+
+security:
+  - ApiKeyAuth: []
+    BearerAuth: []
+
+paths:
+  /:
+    get:
+      tags: [Health]
+      operationId: healthCheck
+      summary: Health check (Public)
+      description: Returns a simple readiness string. No authentication required.
+      security: []
+      responses:
+        '200':
+          description: Service is up.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: Swiftdrop API is running
+
+  /auth/register:
+    post:
+      tags: [Auth]
+      operationId: registerCompany
+      summary: Register a new company + owner admin (Public)
+      description: >
+        Self-service onboarding. Creates a new company (tenant) with a generated
+        join code and its first ADMIN user, then returns an authentication token.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterAdminDto'
+      responses:
+        '201':
+          description: Company and admin created; session issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Log in (Public)
+      description: Authenticate with email + password and receive a JWT.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginDto'
+      responses:
+        '201':
+          description: Authenticated; session issued.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /platform/overview:
+    get:
+      tags: [Platform (Super Admin)]
+      operationId: getPlatformOverview
+      summary: Platform overview (Super Admin)
+      description: Cross-tenant totals plus per-company statistics.
+      responses:
+        '200':
+          description: Aggregated platform statistics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformOverview'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /platform/companies:
+    get:
+      tags: [Platform (Super Admin)]
+      operationId: listPlatformCompanies
+      summary: List all companies (Super Admin)
+      description: Every company on the platform with owner and volume counts.
+      responses:
+        '200':
+          description: Companies across all tenants.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlatformCompany'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Platform (Super Admin)]
+      operationId: createPlatformCompany
+      summary: Create a company + owner admin (Super Admin)
+      description: Provisions a new tenant and its first ADMIN in one transaction.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCompanyDto'
+      responses:
+        '201':
+          description: Company and owner admin created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateCompanyResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /platform/users:
+    get:
+      tags: [Platform (Super Admin)]
+      operationId: listPlatformUsers
+      summary: List all users (Super Admin)
+      description: Every admin and delivery agent across all companies.
+      responses:
+        '200':
+          description: Users across all tenants.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlatformUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /platform/agents:
+    post:
+      tags: [Platform (Super Admin)]
+      operationId: createPlatformAgent
+      summary: Create a delivery agent for any company (Super Admin)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePlatformAgentDto'
+      responses:
+        '201':
+          description: Delivery agent created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /platform/parcels:
+    get:
+      tags: [Platform (Super Admin)]
+      operationId: listPlatformParcels
+      summary: List all parcels (Super Admin)
+      description: Live view of every parcel across all companies.
+      responses:
+        '200':
+          description: Parcels across all tenants.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlatformParcel'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /companies:
+    get:
+      tags: [Companies]
+      operationId: listCompanies
+      summary: List companies (Any authenticated)
+      description: >
+        Lightweight list of companies (id, name, join code). Used by agents to
+        pick a company to switch into.
+      responses:
+        '200':
+          description: Company summaries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Company'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /companies/me:
+    get:
+      tags: [Companies]
+      operationId: getMyCompany
+      summary: Get my company (Admin)
+      description: Full details of the admin's own company, including join code.
+      responses:
+        '200':
+          description: The caller's company.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users:
+    post:
+      tags: [Users]
+      operationId: createDeliveryAgent
+      summary: Create a delivery agent (Admin)
+      description: Creates a delivery agent within the admin's company.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDeliveryAgentDto'
+      responses:
+        '201':
+          description: Delivery agent created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    get:
+      tags: [Users]
+      operationId: listUsers
+      summary: List users in my company (Admin)
+      responses:
+        '200':
+          description: Users belonging to the admin's company.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /users/{id}:
+    get:
+      tags: [Users]
+      operationId: getUser
+      summary: Get a user (Any authenticated)
+      description: >
+        Admins can view any user in their company; agents can view only their
+        own profile.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      responses:
+        '200':
+          description: The requested user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /users/{id}/availability:
+    patch:
+      tags: [Users]
+      operationId: updateUserAvailability
+      summary: Update availability (Any authenticated)
+      description: >
+        Admins can toggle any agent in their company; agents can toggle their
+        own availability.
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAvailabilityDto'
+      responses:
+        '200':
+          description: Updated user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /parcels:
+    post:
+      tags: [Parcels]
+      operationId: createParcel
+      summary: Register a parcel (Admin)
+      description: >
+        Creates a parcel in the admin's company. `trackingNumber` is generated
+        when omitted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateParcelDto'
+      responses:
+        '201':
+          description: Parcel registered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Parcel'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    get:
+      tags: [Parcels]
+      operationId: listParcels
+      summary: List parcels (Any authenticated)
+      description: >
+        Admins see all parcels in their company; delivery agents see only the
+        parcels assigned to them.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ParcelStatus'
+        - name: sender
+          in: query
+          required: false
+          description: Case-insensitive partial match on sender name (admins).
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Parcels visible to the caller.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Parcel'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /parcels/retry-queue:
+    get:
+      tags: [Parcels]
+      operationId: listRetryQueue
+      summary: List retry-queued parcels (Any authenticated)
+      description: Parcels flagged for a delivery retry, scoped to the caller.
+      responses:
+        '200':
+          description: Retry-queued parcels.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Parcel'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /parcels/{id}:
+    get:
+      tags: [Parcels]
+      operationId: getParcel
+      summary: Get a parcel (Any authenticated)
+      parameters:
+        - $ref: '#/components/parameters/ParcelId'
+      responses:
+        '200':
+          description: The requested parcel.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Parcel'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /parcels/{id}/history:
+    get:
+      tags: [Parcels]
+      operationId: getParcelHistory
+      summary: Get a parcel's delivery timeline (Any authenticated)
+      parameters:
+        - $ref: '#/components/parameters/ParcelId'
+      responses:
+        '200':
+          description: Chronological delivery events for the parcel.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeliveryEvent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /parcels/{id}/assign:
+    patch:
+      tags: [Parcels]
+      operationId: assignParcel
+      summary: Assign a parcel to an agent (Admin)
+      parameters:
+        - $ref: '#/components/parameters/ParcelId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignParcelDto'
+      responses:
+        '200':
+          description: Updated parcel.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Parcel'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /parcels/{id}/requeue:
+    patch:
+      tags: [Parcels]
+      operationId: requeueParcel
+      summary: Flag a parcel for retry (Admin)
+      parameters:
+        - $ref: '#/components/parameters/ParcelId'
+      responses:
+        '200':
+          description: Updated parcel.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Parcel'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /parcels/{id}/status:
+    patch:
+      tags: [Parcels]
+      operationId: updateParcelStatus
+      summary: Update parcel status (Delivery Agent)
+      description: >
+        Records a status change for a parcel assigned to the calling agent. The
+        transition must be valid for the parcel's current status.
+      parameters:
+        - $ref: '#/components/parameters/ParcelId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateParcelStatusDto'
+      responses:
+        '200':
+          description: Updated parcel and the recorded event.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusChangeResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /parcels/{id}/retry-dispatch:
+    patch:
+      tags: [Parcels]
+      operationId: dispatchRetry
+      summary: Dispatch a retry attempt (Delivery Agent)
+      description: >
+        Moves a retry-queued, failed parcel back to OUT_FOR_DELIVERY. Only valid
+        when the parcel is queued for retry and in FAILED_ATTEMPT status.
+      parameters:
+        - $ref: '#/components/parameters/ParcelId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DispatchRetryDto'
+      responses:
+        '200':
+          description: Updated parcel and the recorded event.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusChangeResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /delivery-events:
+    post:
+      tags: [Delivery Events]
+      operationId: createDeliveryEvent
+      summary: Record a delivery event (Delivery Agent)
+      description: >
+        Alternative to `PATCH /parcels/{id}/status`; records a status change for
+        a parcel assigned to the calling agent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDeliveryEventDto'
+      responses:
+        '201':
+          description: Updated parcel and the recorded event.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusChangeResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /delivery-events/{parcelId}:
+    get:
+      tags: [Delivery Events]
+      operationId: getDeliveryEventsByParcel
+      summary: Get a parcel's delivery timeline (Any authenticated)
+      parameters:
+        - name: parcelId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Chronological delivery events for the parcel.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeliveryEvent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /agents/me/switch-company:
+    post:
+      tags: [Agents]
+      operationId: switchCompany
+      summary: Switch to another company (Delivery Agent)
+      description: >
+        **Corner case 2.** The calling agent moves to the company identified by
+        `joinCode`. Their active parcels in the previous company are
+        auto-reassigned to the teammate with the smallest queue, both admins are
+        notified, and the agent is attached to the new company.
+
+
+        The current JWT still carries the old company; the agent should log in
+        again after switching.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SwitchCompanyDto'
+      responses:
+        '201':
+          description: Agent moved; previous-company reassignment summary returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SwitchCompanyResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /agents/me/report-incident:
+    post:
+      tags: [Agents]
+      operationId: reportMyIncident
+      summary: Report my own incident (Delivery Agent)
+      description: >
+        **Corner case 1 (self).** Marks the calling agent unavailable and
+        auto-reassigns their active parcels to the least-loaded available
+        teammate. The company owner is notified.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportIncidentDto'
+      responses:
+        '201':
+          description: Incident recorded with reassignment summary.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncidentResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /agents/{agentId}/report-incident:
+    post:
+      tags: [Agents]
+      operationId: reportAgentIncident
+      summary: Report an incident for an agent (Admin)
+      description: >
+        **Corner case 1 (admin-triggered).** The admin reports that an agent in
+        their company can no longer deliver. Same reassignment + notification
+        behaviour as the self-report endpoint.
+      parameters:
+        - name: agentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportIncidentDto'
+      responses:
+        '201':
+          description: Incident recorded with reassignment summary.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncidentResult'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /notifications:
+    get:
+      tags: [Notifications]
+      operationId: listNotifications
+      summary: List my notifications (Admin)
+      description: Notifications addressed to the calling admin, newest first.
+      responses:
+        '200':
+          description: Notifications for the caller.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /notifications/{id}/read:
+    patch:
+      tags: [Notifications]
+      operationId: markNotificationRead
+      summary: Mark a notification as read (Admin)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The updated notification.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /reports/agents:
+    get:
+      tags: [Reports]
+      operationId: getAgentReport
+      summary: Agent performance report (Admin)
+      description: >
+        Aggregated delivery metrics for every agent in the admin's company.
+      responses:
+        '200':
+          description: Per-agent performance summaries.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AgentReport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /realtime/stream:
+    get:
+      tags: [Realtime]
+      operationId: streamRealtime
+      summary: Live event stream (Any authenticated)
+      description: >
+        Server-Sent Events (SSE) stream. Admins receive `parcel.updated` and
+        `notification.created` events for their company; agents receive
+        `parcel.updated` events for their own parcels; super admins receive all
+        `parcel.updated` events. Heartbeats are sent periodically.
+      responses:
+        '200':
+          description: An `text/event-stream` of newline-delimited SSE events.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+      description: Shared API key required on every non-public request.
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT issued by /auth/login or /auth/register.
+
+  parameters:
+    UserId:
+      name: id
+      in: path
+      required: true
+      description: User UUID.
+      schema:
+        type: string
+        format: uuid
+    ParcelId:
+      name: id
+      in: path
+      required: true
+      description: Parcel UUID.
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    ValidationError:
+      description: Request validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            statusCode: 400
+            message:
+              - email must be an email
+            error: Bad Request
+    Unauthorized:
+      description: Missing/invalid API key or JWT.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            statusCode: 401
+            message: Unauthorized
+            error: Unauthorized
+    Forbidden:
+      description: Authenticated but not allowed for this role/tenant.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            statusCode: 403
+            message: Insufficient permissions
+            error: Forbidden
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            statusCode: 404
+            message: Resource not found
+            error: Not Found
+    Conflict:
+      description: Resource already exists (e.g. duplicate email).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            statusCode: 409
+            message: A user with this email already exists
+            error: Conflict
+
+  schemas:
+    UserRole:
+      type: string
+      enum: [SUPER_ADMIN, ADMIN, DELIVERY_AGENT]
+
+    ParcelStatus:
+      type: string
+      enum: [REGISTERED, PICKED_UP, OUT_FOR_DELIVERY, DELIVERED, FAILED_ATTEMPT]
+
+    NotificationType:
+      type: string
+      enum:
+        - AGENT_LEFT_COMPANY
+        - AGENT_JOINED_COMPANY
+        - AGENT_INCIDENT_REPORTED
+        - PARCEL_REASSIGNED
+        - PARCEL_NEEDS_MANUAL_ASSIGNMENT
+
+    Error:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+          example: 400
+        message:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        error:
+          type: string
+          example: Bad Request
+        timestamp:
+          type: string
+          format: date-time
+        path:
+          type: string
+      required: [statusCode, message]
+
+    RegisterAdminDto:
+      type: object
+      required: [companyName, name, email, password]
+      properties:
+        companyName:
+          type: string
+          minLength: 1
+          example: Acme Delivery
+        name:
+          type: string
+          minLength: 1
+          example: Alice Admin
+        email:
+          type: string
+          format: email
+          example: alice@acme.com
+        password:
+          type: string
+          format: password
+          minLength: 6
+          example: password123
+
+    LoginDto:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: admin@swiftdrop.com
+        password:
+          type: string
+          format: password
+          minLength: 6
+          example: password123
+
+    AuthUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/UserRole'
+        companyId:
+          type: string
+          format: uuid
+          nullable: true
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: JWT bearer token.
+        user:
+          $ref: '#/components/schemas/AuthUser'
+
+    Company:
+      type: object
+      description: Lightweight company summary.
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        joinCode:
+          type: string
+          example: SWIFT1
+
+    CompanyDetail:
+      allOf:
+        - $ref: '#/components/schemas/Company'
+        - type: object
+          properties:
+            ownerId:
+              type: string
+              format: uuid
+              nullable: true
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+
+    CreateDeliveryAgentDto:
+      type: object
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          example: Jane Smith
+        email:
+          type: string
+          format: email
+          example: jane@swiftdrop.com
+        password:
+          type: string
+          format: password
+          minLength: 6
+          example: password123
+        isAvailable:
+          type: boolean
+          default: true
+
+    UpdateAvailabilityDto:
+      type: object
+      required: [isAvailable]
+      properties:
+        isAvailable:
+          type: boolean
+          example: false
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/UserRole'
+        companyId:
+          type: string
+          format: uuid
+          nullable: true
+        isAvailable:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateParcelDto:
+      type: object
+      required: [senderName, senderAddress, recipientName, recipientAddress]
+      properties:
+        trackingNumber:
+          type: string
+          maxLength: 50
+          description: Auto-generated when omitted.
+          example: SWFT-2K5J8N
+        senderName:
+          type: string
+          maxLength: 255
+          example: Warehouse A
+        senderAddress:
+          type: string
+          example: 12 Depot Road
+        recipientName:
+          type: string
+          maxLength: 255
+          example: John Doe
+        recipientAddress:
+          type: string
+          example: 88 Maple Street
+
+    AssignParcelDto:
+      type: object
+      required: [assignedAgentId]
+      properties:
+        assignedAgentId:
+          type: string
+          format: uuid
+
+    UpdateParcelStatusDto:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: '#/components/schemas/ParcelStatus'
+        remarks:
+          type: string
+          example: Left with reception
+
+    DispatchRetryDto:
+      type: object
+      properties:
+        remarks:
+          type: string
+          example: Second attempt scheduled
+
+    CreateDeliveryEventDto:
+      type: object
+      required: [parcelId, status]
+      properties:
+        parcelId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/ParcelStatus'
+        remarks:
+          type: string
+
+    Parcel:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        trackingNumber:
+          type: string
+        companyId:
+          type: string
+          format: uuid
+        senderName:
+          type: string
+        senderAddress:
+          type: string
+        recipientName:
+          type: string
+        recipientAddress:
+          type: string
+        assignedAgentId:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          $ref: '#/components/schemas/ParcelStatus'
+        retryQueued:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    DeliveryEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        parcelId:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/ParcelStatus'
+        remarks:
+          type: string
+          nullable: true
+        createdBy:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+
+    StatusChangeResult:
+      type: object
+      properties:
+        parcel:
+          $ref: '#/components/schemas/Parcel'
+        event:
+          $ref: '#/components/schemas/DeliveryEvent'
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        companyId:
+          type: string
+          format: uuid
+        recipientId:
+          type: string
+          format: uuid
+        type:
+          $ref: '#/components/schemas/NotificationType'
+        message:
+          type: string
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+        isRead:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    AgentReport:
+      type: object
+      properties:
+        agentId:
+          type: string
+          format: uuid
+        agentName:
+          type: string
+        agentEmail:
+          type: string
+          format: email
+        totalDeliveries:
+          type: integer
+        successRate:
+          type: number
+          format: float
+          description: Percentage of completed attempts that were delivered.
+        averagePickupToDeliveryMinutes:
+          type: number
+          format: float
+          nullable: true
+
+    SwitchCompanyDto:
+      type: object
+      required: [joinCode]
+      properties:
+        joinCode:
+          type: string
+          minLength: 4
+          maxLength: 20
+          example: METRO1
+
+    ReportIncidentDto:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 500
+          example: Vehicle breakdown
+
+    ReassignmentResult:
+      type: object
+      properties:
+        reassignments:
+          type: array
+          items:
+            type: object
+            properties:
+              parcelId:
+                type: string
+                format: uuid
+              trackingNumber:
+                type: string
+              fromAgentId:
+                type: string
+                format: uuid
+              toAgentId:
+                type: string
+                format: uuid
+        unassigned:
+          type: array
+          items:
+            type: object
+            properties:
+              parcelId:
+                type: string
+                format: uuid
+              trackingNumber:
+                type: string
+
+    SwitchCompanyResult:
+      type: object
+      properties:
+        agent:
+          $ref: '#/components/schemas/User'
+        previousCompanyReassignment:
+          $ref: '#/components/schemas/ReassignmentResult'
+
+    IncidentResult:
+      allOf:
+        - type: object
+          properties:
+            agentId:
+              type: string
+              format: uuid
+            companyId:
+              type: string
+              format: uuid
+            reason:
+              type: string
+        - $ref: '#/components/schemas/ReassignmentResult'
+
+    CreateCompanyDto:
+      type: object
+      required: [companyName, adminName, adminEmail, adminPassword]
+      properties:
+        companyName:
+          type: string
+          minLength: 1
+          example: Metro Couriers
+        adminName:
+          type: string
+          minLength: 1
+          example: Bob Admin
+        adminEmail:
+          type: string
+          format: email
+          example: bob@metro.com
+        adminPassword:
+          type: string
+          format: password
+          minLength: 6
+          example: password123
+
+    CreatePlatformAgentDto:
+      type: object
+      required: [companyId, name, email, password]
+      properties:
+        companyId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 6
+        isAvailable:
+          type: boolean
+          default: true
+
+    CreatedCompanyAdmin:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/UserRole'
+        companyId:
+          type: string
+          format: uuid
+          nullable: true
+
+    CreateCompanyResult:
+      type: object
+      properties:
+        company:
+          $ref: '#/components/schemas/CompanyDetail'
+        admin:
+          $ref: '#/components/schemas/CreatedCompanyAdmin'
+
+    PlatformCompany:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        joinCode:
+          type: string
+        ownerName:
+          type: string
+          nullable: true
+        ownerEmail:
+          type: string
+          nullable: true
+        agentCount:
+          type: integer
+        parcelCount:
+          type: integer
+        deliveredCount:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    PlatformUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          $ref: '#/components/schemas/UserRole'
+        companyId:
+          type: string
+          format: uuid
+          nullable: true
+        companyName:
+          type: string
+          nullable: true
+        isAvailable:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    PlatformParcel:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        trackingNumber:
+          type: string
+        status:
+          $ref: '#/components/schemas/ParcelStatus'
+        retryQueued:
+          type: boolean
+        companyId:
+          type: string
+          format: uuid
+        companyName:
+          type: string
+          nullable: true
+        assignedAgentId:
+          type: string
+          format: uuid
+          nullable: true
+        assignedAgentName:
+          type: string
+          nullable: true
+        senderName:
+          type: string
+        recipientName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    PlatformOverview:
+      type: object
+      properties:
+        totals:
+          type: object
+          properties:
+            companies:
+              type: integer
+            admins:
+              type: integer
+            agents:
+              type: integer
+            parcels:
+              type: integer
+            parcelsByStatus:
+              type: object
+              additionalProperties:
+                type: integer
+              example:
+                REGISTERED: 4
+                OUT_FOR_DELIVERY: 2
+                DELIVERED: 10
+        companies:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlatformCompany'

@@ -29,17 +29,20 @@ describe('DeliveryEventsService', () => {
     id: 'agent-id',
     email: 'agent@swiftdrop.com',
     role: UserRole.DELIVERY_AGENT,
+    companyId: 'company-1',
   };
 
   const admin: AuthenticatedUser = {
     id: 'admin-id',
     email: 'admin@swiftdrop.com',
     role: UserRole.ADMIN,
+    companyId: 'company-1',
   };
 
   const parcel = {
     id: 'parcel-id',
     trackingNumber: 'SWD-TEST',
+    companyId: 'company-1',
     senderName: 'Alice',
     senderAddress: '123 St',
     recipientName: 'Bob',

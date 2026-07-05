@@ -16,7 +16,7 @@ export interface AgentReportRow {
 export class ReportsRepository {
   constructor(private readonly drizzleService: DrizzleService) {}
 
-  async getAgentSummaries(): Promise<AgentReportRow[]> {
+  async getAgentSummaries(companyId: string): Promise<AgentReportRow[]> {
     const result = await this.drizzleService.db.execute(sql`
       SELECT
         u.id AS "agentId",
@@ -45,6 +45,7 @@ export class ReportsRepository {
           AND de.status = 'DELIVERED'
       ) delivered_event ON true
       WHERE u.role = ${UserRole.DELIVERY_AGENT}
+        AND u.company_id = ${companyId}
       GROUP BY u.id, u.name, u.email
       ORDER BY u.name
     `);

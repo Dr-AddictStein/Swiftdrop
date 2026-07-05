@@ -28,12 +28,14 @@ describe('UsersService', () => {
     id: 'admin-id',
     email: 'admin@swiftdrop.com',
     role: UserRole.ADMIN,
+    companyId: 'company-1',
   };
 
   const agent: AuthenticatedUser = {
     id: 'agent-id',
     email: 'agent@swiftdrop.com',
     role: UserRole.DELIVERY_AGENT,
+    companyId: 'company-1',
   };
 
   const agentUser = {
@@ -41,6 +43,7 @@ describe('UsersService', () => {
     name: 'Delivery Agent',
     email: 'agent@swiftdrop.com',
     role: UserRole.DELIVERY_AGENT,
+    companyId: 'company-1',
     isAvailable: true,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -68,7 +71,8 @@ describe('UsersService', () => {
   it('returns all users for admin listing', async () => {
     usersRepository.findAll.mockResolvedValue([agentUser]);
 
-    await expect(service.findAll()).resolves.toEqual([agentUser]);
+    await expect(service.findAll(admin)).resolves.toEqual([agentUser]);
+    expect(usersRepository.findAll).toHaveBeenCalledWith('company-1');
   });
 
   it('creates a delivery agent with a hashed password', async () => {
@@ -77,11 +81,14 @@ describe('UsersService', () => {
     usersRepository.create.mockResolvedValue(agentUser);
 
     await expect(
-      service.createDeliveryAgent({
-        name: 'Delivery Agent',
-        email: 'agent@swiftdrop.com',
-        password: 'password123',
-      }),
+      service.createDeliveryAgent(
+        {
+          name: 'Delivery Agent',
+          email: 'agent@swiftdrop.com',
+          password: 'password123',
+        },
+        admin,
+      ),
     ).resolves.toEqual(agentUser);
 
     expect(bcrypt.hash).toHaveBeenCalledWith('password123', 10);
@@ -90,6 +97,7 @@ describe('UsersService', () => {
       email: 'agent@swiftdrop.com',
       passwordHash: 'hashed-password',
       role: UserRole.DELIVERY_AGENT,
+      companyId: 'company-1',
       isAvailable: true,
     });
   });
@@ -98,11 +106,14 @@ describe('UsersService', () => {
     usersRepository.findByEmail.mockResolvedValue(agentUser);
 
     await expect(
-      service.createDeliveryAgent({
-        name: 'Another Agent',
-        email: 'agent@swiftdrop.com',
-        password: 'password123',
-      }),
+      service.createDeliveryAgent(
+        {
+          name: 'Another Agent',
+          email: 'agent@swiftdrop.com',
+          password: 'password123',
+        },
+        admin,
+      ),
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
