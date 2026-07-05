@@ -1,0 +1,753 @@
+{
+  "info": {
+    "name": "Swiftdrop Delivery API",
+    "_postman_id": "b1e7a1c2-4d3f-4b6a-9f00-swiftdrop0001",
+    "description": "Multi-tenant last-mile delivery API.\n\nRequests are grouped by ROLE (Authentication, Super Admin, Admin, Delivery Agent, Common) and then by OPERATION.\n\nHow to use:\n1. Set `baseUrl` and `apiKey` (see collection variables, or import the provided environment).\n2. Run the login requests in **Authentication** first. Their test scripts automatically store `superAdminToken`, `adminToken` and `agentToken`.\n3. List endpoints (users, parcels, notifications, companies) capture the first id/join code into variables so you can run the rest without editing anything.\n\nEvery protected request sends two headers: `x-api-key` and `Authorization: Bearer <token>`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000", "type": "string" },
+    { "key": "apiKey", "value": "dev-api-key", "type": "string" },
+    { "key": "superAdminToken", "value": "", "type": "string" },
+    { "key": "adminToken", "value": "", "type": "string" },
+    { "key": "agentToken", "value": "", "type": "string" },
+    { "key": "companyId", "value": "", "type": "string" },
+    { "key": "targetJoinCode", "value": "METRO1", "type": "string" },
+    { "key": "userId", "value": "", "type": "string" },
+    { "key": "agentId", "value": "", "type": "string" },
+    { "key": "parcelId", "value": "", "type": "string" },
+    { "key": "notificationId", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Authentication (Public)",
+      "description": "Public endpoints. No API key or token required. Run a login here first to populate tokens.",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/", "host": ["{{baseUrl}}"], "path": [""] }
+          }
+        },
+        {
+          "name": "Register company + admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('adminToken', json.accessToken);",
+                  "  if (json.user && json.user.companyId) {",
+                  "    pm.collectionVariables.set('companyId', json.user.companyId);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"companyName\": \"Acme Delivery\",\n  \"name\": \"Alice Admin\",\n  \"email\": \"alice@acme.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"] }
+          }
+        },
+        {
+          "name": "Login - Super Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('superAdminToken', pm.response.json().accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"superadmin@swiftdrop.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Login - Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  pm.collectionVariables.set('adminToken', json.accessToken);",
+                  "  if (json.user && json.user.companyId) {",
+                  "    pm.collectionVariables.set('companyId', json.user.companyId);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@swiftdrop.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Login - Delivery Agent",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('agentToken', pm.response.json().accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"agent@swiftdrop.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Super Admin (SUPER_ADMIN)",
+      "description": "Cross-tenant monitoring and provisioning. Uses {{superAdminToken}}.",
+      "item": [
+        {
+          "name": "Platform overview",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Authorization", "value": "Bearer {{superAdminToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/platform/overview", "host": ["{{baseUrl}}"], "path": ["platform", "overview"] }
+          }
+        },
+        {
+          "name": "List all companies",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const list = pm.response.json();",
+                  "  if (list.length) { pm.collectionVariables.set('companyId', list[0].id); }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Authorization", "value": "Bearer {{superAdminToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/platform/companies", "host": ["{{baseUrl}}"], "path": ["platform", "companies"] }
+          }
+        },
+        {
+          "name": "Create company + owner admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('companyId', pm.response.json().company.id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Authorization", "value": "Bearer {{superAdminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"companyName\": \"Metro Couriers North\",\n  \"adminName\": \"Bob Admin\",\n  \"adminEmail\": \"bob.north@metro.com\",\n  \"adminPassword\": \"password123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/platform/companies", "host": ["{{baseUrl}}"], "path": ["platform", "companies"] }
+          }
+        },
+        {
+          "name": "List all users",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Authorization", "value": "Bearer {{superAdminToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/platform/users", "host": ["{{baseUrl}}"], "path": ["platform", "users"] }
+          }
+        },
+        {
+          "name": "Create delivery agent (any company)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Authorization", "value": "Bearer {{superAdminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"companyId\": \"{{companyId}}\",\n  \"name\": \"Casey Courier\",\n  \"email\": \"casey@metro.com\",\n  \"password\": \"password123\",\n  \"isAvailable\": true\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/platform/agents", "host": ["{{baseUrl}}"], "path": ["platform", "agents"] }
+          }
+        },
+        {
+          "name": "List all parcels",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Authorization", "value": "Bearer {{superAdminToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/platform/parcels", "host": ["{{baseUrl}}"], "path": ["platform", "parcels"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin (ADMIN)",
+      "description": "Manage one company. Uses {{adminToken}}.",
+      "item": [
+        {
+          "name": "Companies",
+          "item": [
+            {
+              "name": "Get my company",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/companies/me", "host": ["{{baseUrl}}"], "path": ["companies", "me"] }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Users",
+          "item": [
+            {
+              "name": "Create delivery agent",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "  pm.collectionVariables.set('agentId', pm.response.json().id);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Jane Smith\",\n  \"email\": \"jane@swiftdrop.com\",\n  \"password\": \"password123\",\n  \"isAvailable\": true\n}"
+                },
+                "url": { "raw": "{{baseUrl}}/users", "host": ["{{baseUrl}}"], "path": ["users"] }
+              }
+            },
+            {
+              "name": "List users in my company",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "  const agent = pm.response.json().find(function (u) { return u.role === 'DELIVERY_AGENT'; });",
+                      "  if (agent) {",
+                      "    pm.collectionVariables.set('agentId', agent.id);",
+                      "    pm.collectionVariables.set('userId', agent.id);",
+                      "  }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/users", "host": ["{{baseUrl}}"], "path": ["users"] }
+              }
+            },
+            {
+              "name": "Get user by id",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/users/{{userId}}", "host": ["{{baseUrl}}"], "path": ["users", "{{userId}}"] }
+              }
+            },
+            {
+              "name": "Update agent availability",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "body": { "mode": "raw", "raw": "{\n  \"isAvailable\": false\n}" },
+                "url": { "raw": "{{baseUrl}}/users/{{agentId}}/availability", "host": ["{{baseUrl}}"], "path": ["users", "{{agentId}}", "availability"] }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Parcels",
+          "item": [
+            {
+              "name": "Register parcel",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 201) {",
+                      "  pm.collectionVariables.set('parcelId', pm.response.json().id);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"senderName\": \"Warehouse A\",\n  \"senderAddress\": \"12 Depot Road\",\n  \"recipientName\": \"John Doe\",\n  \"recipientAddress\": \"88 Maple Street\"\n}"
+                },
+                "url": { "raw": "{{baseUrl}}/parcels", "host": ["{{baseUrl}}"], "path": ["parcels"] }
+              }
+            },
+            {
+              "name": "List parcels (with filters)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "  const list = pm.response.json();",
+                      "  if (list.length) { pm.collectionVariables.set('parcelId', list[0].id); }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/parcels?status=REGISTERED&sender=Warehouse",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["parcels"],
+                  "query": [
+                    { "key": "status", "value": "REGISTERED", "disabled": true },
+                    { "key": "sender", "value": "Warehouse", "disabled": true }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get parcel by id",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/parcels/{{parcelId}}", "host": ["{{baseUrl}}"], "path": ["parcels", "{{parcelId}}"] }
+              }
+            },
+            {
+              "name": "Get parcel history",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/parcels/{{parcelId}}/history", "host": ["{{baseUrl}}"], "path": ["parcels", "{{parcelId}}", "history"] }
+              }
+            },
+            {
+              "name": "Assign parcel to agent",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "body": { "mode": "raw", "raw": "{\n  \"assignedAgentId\": \"{{agentId}}\"\n}" },
+                "url": { "raw": "{{baseUrl}}/parcels/{{parcelId}}/assign", "host": ["{{baseUrl}}"], "path": ["parcels", "{{parcelId}}", "assign"] }
+              }
+            },
+            {
+              "name": "Requeue parcel for retry",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/parcels/{{parcelId}}/requeue", "host": ["{{baseUrl}}"], "path": ["parcels", "{{parcelId}}", "requeue"] }
+              }
+            },
+            {
+              "name": "List retry queue",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/parcels/retry-queue", "host": ["{{baseUrl}}"], "path": ["parcels", "retry-queue"] }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Agents",
+          "item": [
+            {
+              "name": "Report incident for an agent",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Vehicle breakdown\"\n}" },
+                "url": { "raw": "{{baseUrl}}/agents/{{agentId}}/report-incident", "host": ["{{baseUrl}}"], "path": ["agents", "{{agentId}}", "report-incident"] }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Notifications",
+          "item": [
+            {
+              "name": "List my notifications",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "  const list = pm.response.json();",
+                      "  if (list.length) { pm.collectionVariables.set('notificationId', list[0].id); }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/notifications", "host": ["{{baseUrl}}"], "path": ["notifications"] }
+              }
+            },
+            {
+              "name": "Mark notification as read",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/notifications/{{notificationId}}/read", "host": ["{{baseUrl}}"], "path": ["notifications", "{{notificationId}}", "read"] }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reports",
+          "item": [
+            {
+              "name": "Agent performance report",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/reports/agents", "host": ["{{baseUrl}}"], "path": ["reports", "agents"] }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Delivery Agent (DELIVERY_AGENT)",
+      "description": "Handle assigned parcels and lifecycle events. Uses {{agentToken}}.",
+      "item": [
+        {
+          "name": "Parcels",
+          "item": [
+            {
+              "name": "My deliveries",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (pm.response.code === 200) {",
+                      "  const list = pm.response.json();",
+                      "  if (list.length) { pm.collectionVariables.set('parcelId', list[0].id); }",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{agentToken}}" }
+                ],
+                "url": {
+                  "raw": "{{baseUrl}}/parcels?status=REGISTERED",
+                  "host": ["{{baseUrl}}"],
+                  "path": ["parcels"],
+                  "query": [{ "key": "status", "value": "REGISTERED", "disabled": true }]
+                }
+              }
+            },
+            {
+              "name": "Get parcel by id",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{agentToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/parcels/{{parcelId}}", "host": ["{{baseUrl}}"], "path": ["parcels", "{{parcelId}}"] }
+              }
+            },
+            {
+              "name": "Update parcel status",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{agentToken}}" }
+                ],
+                "body": { "mode": "raw", "raw": "{\n  \"status\": \"PICKED_UP\",\n  \"remarks\": \"Picked up from depot\"\n}" },
+                "url": { "raw": "{{baseUrl}}/parcels/{{parcelId}}/status", "host": ["{{baseUrl}}"], "path": ["parcels", "{{parcelId}}", "status"] }
+              }
+            },
+            {
+              "name": "Dispatch retry",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{agentToken}}" }
+                ],
+                "body": { "mode": "raw", "raw": "{\n  \"remarks\": \"Second attempt scheduled\"\n}" },
+                "url": { "raw": "{{baseUrl}}/parcels/{{parcelId}}/retry-dispatch", "host": ["{{baseUrl}}"], "path": ["parcels", "{{parcelId}}", "retry-dispatch"] }
+              }
+            },
+            {
+              "name": "My retry queue",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{agentToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/parcels/retry-queue", "host": ["{{baseUrl}}"], "path": ["parcels", "retry-queue"] }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delivery Events",
+          "item": [
+            {
+              "name": "Record delivery event",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{agentToken}}" }
+                ],
+                "body": { "mode": "raw", "raw": "{\n  \"parcelId\": \"{{parcelId}}\",\n  \"status\": \"OUT_FOR_DELIVERY\",\n  \"remarks\": \"On the way\"\n}" },
+                "url": { "raw": "{{baseUrl}}/delivery-events", "host": ["{{baseUrl}}"], "path": ["delivery-events"] }
+              }
+            },
+            {
+              "name": "Get events by parcel",
+              "request": {
+                "method": "GET",
+                "header": [
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{agentToken}}" }
+                ],
+                "url": { "raw": "{{baseUrl}}/delivery-events/{{parcelId}}", "host": ["{{baseUrl}}"], "path": ["delivery-events", "{{parcelId}}"] }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Profile & Lifecycle",
+          "item": [
+            {
+              "name": "Report my incident",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{agentToken}}" }
+                ],
+                "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Feeling unwell\"\n}" },
+                "url": { "raw": "{{baseUrl}}/agents/me/report-incident", "host": ["{{baseUrl}}"], "path": ["agents", "me", "report-incident"] }
+              }
+            },
+            {
+              "name": "Switch company",
+              "request": {
+                "method": "POST",
+                "header": [
+                  { "key": "Content-Type", "value": "application/json" },
+                  { "key": "x-api-key", "value": "{{apiKey}}" },
+                  { "key": "Authorization", "value": "Bearer {{agentToken}}" }
+                ],
+                "body": { "mode": "raw", "raw": "{\n  \"joinCode\": \"{{targetJoinCode}}\"\n}" },
+                "url": { "raw": "{{baseUrl}}/agents/me/switch-company", "host": ["{{baseUrl}}"], "path": ["agents", "me", "switch-company"] }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Common (Any authenticated)",
+      "description": "Endpoints usable by any logged-in user. Data is still scoped by the service to the caller's company. Default token here is {{adminToken}} - swap for {{agentToken}} or {{superAdminToken}} as needed.",
+      "item": [
+        {
+          "name": "List companies (join codes)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const list = pm.response.json();",
+                  "  if (list.length) { pm.collectionVariables.set('targetJoinCode', list[list.length - 1].joinCode); }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/companies", "host": ["{{baseUrl}}"], "path": ["companies"] }
+          }
+        },
+        {
+          "name": "Realtime stream (SSE)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "text/event-stream" },
+              { "key": "x-api-key", "value": "{{apiKey}}" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "url": { "raw": "{{baseUrl}}/realtime/stream", "host": ["{{baseUrl}}"], "path": ["realtime", "stream"] }
+          }
+        }
+      ]
+    }
+  ]
+}

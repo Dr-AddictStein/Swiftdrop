@@ -10,17 +10,22 @@ import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.in
 import { UserRole } from '../../common/enums/user-role.enum';
 import { CreateDeliveryAgentDto } from './dto/create-delivery-agent.dto';
 import { UpdateAvailabilityDto } from './dto/update-availability.dto';
-import { UsersRepository } from './users.repository';
+import { SafeUser, UsersRepository } from './users.repository';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly usersRepository: UsersRepository) {}
 
-  findAll() {
-    return this.usersRepository.findAll();
+  findAll(requester: AuthenticatedUser) {
+    const companyId = this.requireCompanyId(requester);
+    return this.usersRepository.findAll(companyId);
   }
 
-  async createDeliveryAgent(dto: CreateDeliveryAgentDto) {
+  async createDeliveryAgent(
+    dto: CreateDeliveryAgentDto,
+    requester: AuthenticatedUser,
+  ) {
+    const companyId = this.requireCompanyId(requester);
     const existing = await this.usersRepository.findByEmail(dto.email);
 
     if (existing) {
@@ -34,6 +39,7 @@ export class UsersService {
       email: dto.email,
       passwordHash,
       role: UserRole.DELIVERY_AGENT,
+      companyId,
       isAvailable: dto.isAvailable ?? true,
     });
   }
@@ -46,6 +52,8 @@ export class UsersService {
     if (!user) {
       throw new NotFoundException(`User with id '${id}' not found`);
     }
+
+    this.assertSameCompany(user, requester);
 
     return user;
   }
@@ -63,6 +71,8 @@ export class UsersService {
       throw new NotFoundException(`User with id '${id}' not found`);
     }
 
+    this.assertSameCompany(user, requester);
+
     if (user.role !== UserRole.DELIVERY_AGENT) {
       throw new BadRequestException(
         'Availability can only be updated for delivery agents',
@@ -79,6 +89,32 @@ export class UsersService {
     }
 
     return updated;
+  }
+
+  private requireCompanyId(requester: AuthenticatedUser): string {
+    if (!requester.companyId) {
+      throw new ForbiddenException('You must belong to a company');
+    }
+
+    return requester.companyId;
+  }
+
+  private assertSameCompany(
+    user: SafeUser,
+    requester: AuthenticatedUser,
+  ): void {
+    if (requester.id === user.id) {
+      return;
+    }
+
+    if (
+      requester.role === UserRole.ADMIN &&
+      user.companyId === requester.companyId
+    ) {
+      return;
+    }
+
+    throw new ForbiddenException('User belongs to a different company');
   }
 
   private assertCanViewUser(id: string, requester: AuthenticatedUser): void {

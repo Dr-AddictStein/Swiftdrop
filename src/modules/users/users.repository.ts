@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { UserRole } from '../../common/enums/user-role.enum';
 import { DrizzleService } from '../../database/drizzle.service';
 import { users } from '../../database/schema';
@@ -9,6 +9,7 @@ const userSelectFields = {
   name: users.name,
   email: users.email,
   role: users.role,
+  companyId: users.companyId,
   isAvailable: users.isAvailable,
   createdAt: users.createdAt,
   updatedAt: users.updatedAt,
@@ -19,6 +20,7 @@ export type SafeUser = {
   name: string;
   email: string;
   role: (typeof users.$inferSelect)['role'];
+  companyId: string | null;
   isAvailable: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -37,10 +39,28 @@ export class UsersRepository {
       .then((rows) => rows[0] ?? null);
   }
 
-  findAll(): Promise<SafeUser[]> {
+  findAll(companyId?: string): Promise<SafeUser[]> {
+    const query = this.drizzleService.db.select(userSelectFields).from(users);
+
+    if (companyId) {
+      return query
+        .where(eq(users.companyId, companyId))
+        .orderBy(users.createdAt);
+    }
+
+    return query.orderBy(users.createdAt);
+  }
+
+  findAgentsByCompany(companyId: string): Promise<SafeUser[]> {
     return this.drizzleService.db
       .select(userSelectFields)
       .from(users)
+      .where(
+        and(
+          eq(users.companyId, companyId),
+          eq(users.role, UserRole.DELIVERY_AGENT),
+        ),
+      )
       .orderBy(users.createdAt);
   }
 
@@ -65,11 +85,25 @@ export class UsersRepository {
       .then((rows) => rows[0] ?? null);
   }
 
+  updateCompany(
+    id: string,
+    companyId: string,
+    isAvailable: boolean,
+  ): Promise<SafeUser | null> {
+    return this.drizzleService.db
+      .update(users)
+      .set({ companyId, isAvailable })
+      .where(eq(users.id, id))
+      .returning(userSelectFields)
+      .then((rows) => rows[0] ?? null);
+  }
+
   create(data: {
     name: string;
     email: string;
     passwordHash: string;
     role: UserRole;
+    companyId: string;
     isAvailable: boolean;
   }): Promise<SafeUser> {
     return this.drizzleService.db

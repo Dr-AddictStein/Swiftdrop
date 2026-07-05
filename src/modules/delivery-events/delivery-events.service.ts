@@ -145,10 +145,13 @@ export class DeliveryEventsService {
   }
 
   private assertCanAccessParcel(
-    parcel: { assignedAgentId: string | null },
+    parcel: { companyId: string; assignedAgentId: string | null },
     requester: AuthenticatedUser,
   ): void {
-    if (requester.role === UserRole.ADMIN) {
+    if (
+      requester.role === UserRole.ADMIN &&
+      parcel.companyId === requester.companyId
+    ) {
       return;
     }
 

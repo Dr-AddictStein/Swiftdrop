@@ -1,6 +1,11 @@
 import { type FormEvent, useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { createDeliveryAgent, fetchUsers, updateAvailability } from '../../api/services';
+import {
+  createDeliveryAgent,
+  fetchUsers,
+  reportAgentIncident,
+  updateAvailability,
+} from '../../api/services';
 import { ApiRequestError } from '../../api';
 import {
   Alert,
@@ -53,6 +58,25 @@ export function UsersPage() {
     } catch (err) {
       setError(
         err instanceof ApiRequestError ? err.message : 'Failed to update availability',
+      );
+    }
+  };
+
+  const handleReportIncident = async (user: User) => {
+    if (!token || user.role !== 'DELIVERY_AGENT') return;
+    const confirmed = window.confirm(
+      `Report an incident for ${user.name}? They will be set unavailable and their active parcels auto-reassigned to the teammate with the smallest queue.`,
+    );
+    if (!confirmed) return;
+    try {
+      const result = await reportAgentIncident(token, user.id);
+      setSuccess(
+        `Incident logged for ${user.name}: ${result.reassignments.length} parcel(s) reassigned, ${result.unassigned.length} awaiting manual assignment.`,
+      );
+      await load();
+    } catch (err) {
+      setError(
+        err instanceof ApiRequestError ? err.message : 'Failed to report incident',
       );
     }
   };
@@ -122,15 +146,24 @@ export function UsersPage() {
                       '—'
                     )}
                   </td>
-                  <td>
+                  <td className="actions-cell">
                     {u.role === 'DELIVERY_AGENT' && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => void toggleAvailability(u)}
-                      >
-                        Toggle availability
-                      </Button>
+                      <>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => void toggleAvailability(u)}
+                        >
+                          Toggle availability
+                        </Button>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() => void handleReportIncident(u)}
+                        >
+                          Report incident
+                        </Button>
+                      </>
                     )}
                   </td>
                 </tr>

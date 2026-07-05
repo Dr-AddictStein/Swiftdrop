@@ -13,6 +13,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
   login: (email: string, password: string) => Promise<void>;
+  applySession: (user: AuthUser, token: string) => void;
   logout: () => void;
 }
 
@@ -40,15 +41,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(stored?.user ?? null);
   const [token, setToken] = useState<string | null>(stored?.token ?? null);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const result = await loginApi(email, password);
-    setUser(result.user);
-    setToken(result.accessToken);
+  const applySession = useCallback((nextUser: AuthUser, nextToken: string) => {
+    setUser(nextUser);
+    setToken(nextToken);
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ user: result.user, token: result.accessToken }),
+      JSON.stringify({ user: nextUser, token: nextToken }),
     );
   }, []);
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      const result = await loginApi(email, password);
+      applySession(result.user, result.accessToken);
+    },
+    [applySession],
+  );
 
   const logout = useCallback(() => {
     setUser(null);
@@ -57,8 +65,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, token, login, logout }),
-    [user, token, login, logout],
+    () => ({ user, token, login, applySession, logout }),
+    [user, token, login, applySession, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

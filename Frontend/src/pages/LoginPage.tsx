@@ -1,8 +1,14 @@
 import { type FormEvent, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Button } from '../components/Modal';
 
 const DEMO_USERS = [
+  {
+    email: 'superadmin@swiftdrop.com',
+    label: 'Super Admin',
+    password: 'password123',
+  },
   { email: 'admin@swiftdrop.com', label: 'Admin', password: 'password123' },
   { email: 'agent@swiftdrop.com', label: 'Agent', password: 'password123' },
 ];
@@ -82,6 +88,9 @@ export function LoginPage() {
               </button>
             ))}
           </div>
+          <p className="login-register-hint">
+            New delivery company? <Link to="/register">Create an account</Link>
+          </p>
         </div>
       </div>
     </div>

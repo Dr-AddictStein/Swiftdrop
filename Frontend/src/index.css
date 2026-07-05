@@ -121,6 +121,12 @@ input:focus, select:focus {
 .sidebar__link {
   padding: 0.65rem 0.85rem; border-radius: 8px; color: var(--muted);
   font-weight: 600; text-decoration: none;
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+}
+.nav-badge {
+  background: var(--danger); color: #fff; font-size: 0.7rem; font-weight: 700;
+  min-width: 1.25rem; height: 1.25rem; padding: 0 0.35rem; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 .sidebar__link:hover, .sidebar__link.active {
   background: var(--surface-2); color: var(--text); text-decoration: none;
@@ -325,3 +331,19 @@ input:focus, select:focus {
   .sidebar { width: 100%; }
   .two-col { grid-template-columns: 1fr; }
 }
+
+/* Notifications */
+.notification-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.notification-item {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
+  padding: 0.9rem 0.5rem; border-bottom: 1px solid var(--border);
+}
+.notification-item:last-child { border-bottom: none; }
+.notification-item__body { display: flex; flex-direction: column; gap: 0.35rem; }
+.notification-item__body p { margin: 0; }
+.notification-item--unread {
+  background: var(--surface-2); border-left: 3px solid var(--accent);
+  border-radius: 8px; padding-left: 0.75rem;
+}
+
+.login-register-hint { margin-top: 1rem !important; font-size: 0.85rem; }

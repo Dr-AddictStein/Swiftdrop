@@ -1,16 +1,24 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { RealtimeProvider } from './context/RealtimeContext';
+import { NotificationsProvider } from './context/NotificationsContext';
 import { AppLayout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
+import { RegisterPage } from './pages/RegisterPage';
 import { AdminOverviewPage } from './pages/admin/AdminOverviewPage';
 import { UsersPage } from './pages/admin/UsersPage';
 import { ReportsPage } from './pages/admin/ReportsPage';
+import { NotificationsPage } from './pages/admin/NotificationsPage';
 import { AgentOverviewPage } from './pages/agent/AgentOverviewPage';
 import { ProfilePage } from './pages/agent/ProfilePage';
 import { ParcelsPage } from './pages/ParcelsPage';
 import { ParcelDetailPage } from './pages/ParcelDetailPage';
 import { RetryQueuePage } from './pages/RetryQueuePage';
+import { PlatformOverviewPage } from './pages/platform/PlatformOverviewPage';
+import { PlatformCompaniesPage } from './pages/platform/PlatformCompaniesPage';
+import { PlatformUsersPage } from './pages/platform/PlatformUsersPage';
+import { PlatformParcelsPage } from './pages/platform/PlatformParcelsPage';
+import type { UserRole } from './types';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { token } = useAuth();
@@ -18,15 +26,23 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return children;
 }
 
-function AdminRoute({ children }: { children: React.ReactNode }) {
+function RoleRoute({
+  roles,
+  children,
+}: {
+  roles: UserRole[];
+  children: React.ReactNode;
+}) {
   const { user } = useAuth();
-  if (user?.role !== 'ADMIN') return <Navigate to="/" replace />;
+  if (!user || !roles.includes(user.role)) return <Navigate to="/" replace />;
   return children;
 }
 
 function HomePage() {
   const { user } = useAuth();
-  return user?.role === 'ADMIN' ? <AdminOverviewPage /> : <AgentOverviewPage />;
+  if (user?.role === 'SUPER_ADMIN') return <PlatformOverviewPage />;
+  if (user?.role === 'ADMIN') return <AdminOverviewPage />;
+  return <AgentOverviewPage />;
 }
 
 function AppRoutes() {
@@ -39,6 +55,10 @@ function AppRoutes() {
         element={token ? <Navigate to="/" replace /> : <LoginPage />}
       />
       <Route
+        path="/register"
+        element={token ? <Navigate to="/" replace /> : <RegisterPage />}
+      />
+      <Route
         element={
           <ProtectedRoute>
             <AppLayout />
@@ -46,26 +66,90 @@ function AppRoutes() {
         }
       >
         <Route index element={<HomePage />} />
-        <Route path="parcels" element={<ParcelsPage />} />
-        <Route path="parcels/:id" element={<ParcelDetailPage />} />
-        <Route path="retry-queue" element={<RetryQueuePage />} />
+
+        {/* Tenant (admin + agent) routes */}
+        <Route
+          path="parcels"
+          element={
+            <RoleRoute roles={['ADMIN', 'DELIVERY_AGENT']}>
+              <ParcelsPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="parcels/:id"
+          element={
+            <RoleRoute roles={['ADMIN', 'DELIVERY_AGENT']}>
+              <ParcelDetailPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="retry-queue"
+          element={
+            <RoleRoute roles={['ADMIN', 'DELIVERY_AGENT']}>
+              <RetryQueuePage />
+            </RoleRoute>
+          }
+        />
         <Route
           path="users"
           element={
-            <AdminRoute>
+            <RoleRoute roles={['ADMIN']}>
               <UsersPage />
-            </AdminRoute>
+            </RoleRoute>
           }
         />
         <Route
           path="reports"
           element={
-            <AdminRoute>
+            <RoleRoute roles={['ADMIN']}>
               <ReportsPage />
-            </AdminRoute>
+            </RoleRoute>
           }
         />
-        <Route path="profile" element={<ProfilePage />} />
+        <Route
+          path="notifications"
+          element={
+            <RoleRoute roles={['ADMIN']}>
+              <NotificationsPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="profile"
+          element={
+            <RoleRoute roles={['DELIVERY_AGENT']}>
+              <ProfilePage />
+            </RoleRoute>
+          }
+        />
+
+        {/* Super admin routes */}
+        <Route
+          path="platform/companies"
+          element={
+            <RoleRoute roles={['SUPER_ADMIN']}>
+              <PlatformCompaniesPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="platform/users"
+          element={
+            <RoleRoute roles={['SUPER_ADMIN']}>
+              <PlatformUsersPage />
+            </RoleRoute>
+          }
+        />
+        <Route
+          path="platform/parcels"
+          element={
+            <RoleRoute roles={['SUPER_ADMIN']}>
+              <PlatformParcelsPage />
+            </RoleRoute>
+          }
+        />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
@@ -76,7 +160,9 @@ export default function App() {
   return (
     <AuthProvider>
       <RealtimeProvider>
-        <AppRoutes />
+        <NotificationsProvider>
+          <AppRoutes />
+        </NotificationsProvider>
       </RealtimeProvider>
     </AuthProvider>
   );

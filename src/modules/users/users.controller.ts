@@ -24,14 +24,17 @@ export class UsersController {
 
   @Post()
   @Roles(UserRole.ADMIN)
-  createDeliveryAgent(@Body() dto: CreateDeliveryAgentDto) {
-    return this.usersService.createDeliveryAgent(dto);
+  createDeliveryAgent(
+    @Body() dto: CreateDeliveryAgentDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.usersService.createDeliveryAgent(dto, user);
   }
 
   @Get()
   @Roles(UserRole.ADMIN)
-  findAll() {
-    return this.usersService.findAll();
+  findAll(@CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.findAll(user);
   }
 
   @Get(':id')

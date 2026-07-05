@@ -32,8 +32,8 @@ export class ParcelsController {
 
   @Post()
   @Roles(UserRole.ADMIN)
-  create(@Body() dto: CreateParcelDto) {
-    return this.parcelsService.create(dto);
+  create(@Body() dto: CreateParcelDto, @CurrentUser() user: AuthenticatedUser) {
+    return this.parcelsService.create(dto, user);
   }
 
   @Get()
@@ -67,14 +67,21 @@ export class ParcelsController {
 
   @Patch(':id/assign')
   @Roles(UserRole.ADMIN)
-  assign(@Param('id', ParseUUIDPipe) id: string, @Body() dto: AssignParcelDto) {
-    return this.parcelsService.assign(id, dto);
+  assign(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: AssignParcelDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.parcelsService.assign(id, dto, user);
   }
 
   @Patch(':id/requeue')
   @Roles(UserRole.ADMIN)
-  requeue(@Param('id', ParseUUIDPipe) id: string) {
-    return this.parcelsService.requeue(id);
+  requeue(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.parcelsService.requeue(id, user);
   }
 
   @Patch(':id/retry-dispatch')

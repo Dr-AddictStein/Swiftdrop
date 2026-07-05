@@ -26,17 +26,20 @@ describe('ParcelsService', () => {
     id: 'admin-id',
     email: 'admin@swiftdrop.com',
     role: UserRole.ADMIN,
+    companyId: 'company-1',
   };
 
   const agent: AuthenticatedUser = {
     id: 'agent-id',
     email: 'agent@swiftdrop.com',
     role: UserRole.DELIVERY_AGENT,
+    companyId: 'company-1',
   };
 
   const parcel = {
     id: 'parcel-id',
     trackingNumber: 'SWD-TEST-1234',
+    companyId: 'company-1',
     senderName: 'Alice Sender',
     senderAddress: '123 Sender St',
     recipientName: 'Bob Recipient',
@@ -53,6 +56,7 @@ describe('ParcelsService', () => {
     name: 'Delivery Agent',
     email: 'agent@swiftdrop.com',
     role: UserRole.DELIVERY_AGENT,
+    companyId: 'company-1',
     isAvailable: true,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -89,17 +93,21 @@ describe('ParcelsService', () => {
   it('creates a parcel with REGISTERED status', async () => {
     parcelsRepository.create.mockResolvedValue(parcel);
 
-    const result = await service.create({
-      senderName: parcel.senderName,
-      senderAddress: parcel.senderAddress,
-      recipientName: parcel.recipientName,
-      recipientAddress: parcel.recipientAddress,
-      trackingNumber: parcel.trackingNumber,
-    });
+    const result = await service.create(
+      {
+        senderName: parcel.senderName,
+        senderAddress: parcel.senderAddress,
+        recipientName: parcel.recipientName,
+        recipientAddress: parcel.recipientAddress,
+        trackingNumber: parcel.trackingNumber,
+      },
+      admin,
+    );
 
     expect(result).toEqual(parcel);
     expect(parcelsRepository.create).toHaveBeenCalledWith({
       trackingNumber: parcel.trackingNumber,
+      companyId: 'company-1',
       senderName: parcel.senderName,
       senderAddress: parcel.senderAddress,
       recipientName: parcel.recipientName,
@@ -118,6 +126,7 @@ describe('ParcelsService', () => {
     ).resolves.toEqual([parcel]);
 
     expect(parcelsRepository.findAll).toHaveBeenCalledWith({
+      companyId: 'company-1',
       status: ParcelStatus.REGISTERED,
       sender: 'Alice',
       assignedAgentId: undefined,
@@ -130,6 +139,7 @@ describe('ParcelsService', () => {
     await expect(service.findAll({}, agent)).resolves.toEqual([parcel]);
 
     expect(parcelsRepository.findAll).toHaveBeenCalledWith({
+      companyId: 'company-1',
       status: undefined,
       sender: undefined,
       assignedAgentId: agent.id,
@@ -168,7 +178,7 @@ describe('ParcelsService', () => {
     parcelsRepository.assign.mockResolvedValue(parcel);
 
     await expect(
-      service.assign(parcel.id, { assignedAgentId: deliveryAgent.id }),
+      service.assign(parcel.id, { assignedAgentId: deliveryAgent.id }, admin),
     ).resolves.toEqual(parcel);
   });
 
@@ -179,7 +189,7 @@ describe('ParcelsService', () => {
     });
 
     await expect(
-      service.assign(parcel.id, { assignedAgentId: deliveryAgent.id }),
+      service.assign(parcel.id, { assignedAgentId: deliveryAgent.id }, admin),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -191,7 +201,7 @@ describe('ParcelsService', () => {
     });
 
     await expect(
-      service.assign(parcel.id, { assignedAgentId: admin.id }),
+      service.assign(parcel.id, { assignedAgentId: admin.id }, admin),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -203,7 +213,7 @@ describe('ParcelsService', () => {
     });
 
     await expect(
-      service.assign(parcel.id, { assignedAgentId: deliveryAgent.id }),
+      service.assign(parcel.id, { assignedAgentId: deliveryAgent.id }, admin),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
@@ -222,6 +232,7 @@ describe('ParcelsService', () => {
 
     await expect(service.findRetryQueue(admin)).resolves.toHaveLength(1);
     expect(parcelsRepository.findAll).toHaveBeenCalledWith({
+      companyId: 'company-1',
       retryQueued: true,
       assignedAgentId: undefined,
     });
@@ -233,6 +244,7 @@ describe('ParcelsService', () => {
     await service.findRetryQueue(agent);
 
     expect(parcelsRepository.findAll).toHaveBeenCalledWith({
+      companyId: 'company-1',
       retryQueued: true,
       assignedAgentId: agent.id,
     });
@@ -250,7 +262,7 @@ describe('ParcelsService', () => {
       retryQueued: true,
     });
 
-    await expect(service.requeue(parcel.id)).resolves.toMatchObject({
+    await expect(service.requeue(parcel.id, admin)).resolves.toMatchObject({
       retryQueued: true,
     });
   });
@@ -258,7 +270,7 @@ describe('ParcelsService', () => {
   it('rejects re-queue when the parcel is not in failed status', async () => {
     parcelsRepository.findById.mockResolvedValue(parcel);
 
-    await expect(service.requeue(parcel.id)).rejects.toBeInstanceOf(
+    await expect(service.requeue(parcel.id, admin)).rejects.toBeInstanceOf(
       BadRequestException,
     );
   });

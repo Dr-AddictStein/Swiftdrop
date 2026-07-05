@@ -1,7 +1,16 @@
 import { NavLink, Outlet, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useRealtime } from '../context/RealtimeContext';
+import { useNotifications } from '../context/NotificationsContext';
 import { Button } from './Modal';
+import type { UserRole } from '../types';
+
+const SUPER_ADMIN_NAV = [
+  { to: '/', label: 'Overview', end: true },
+  { to: '/platform/companies', label: 'Companies' },
+  { to: '/platform/users', label: 'Users' },
+  { to: '/platform/parcels', label: 'Parcels' },
+];
 
 const ADMIN_NAV = [
   { to: '/', label: 'Overview', end: true },
@@ -9,6 +18,7 @@ const ADMIN_NAV = [
   { to: '/users', label: 'Users' },
   { to: '/retry-queue', label: 'Retry Queue' },
   { to: '/reports', label: 'Reports' },
+  { to: '/notifications', label: 'Notifications' },
 ];
 
 const AGENT_NAV = [
@@ -18,12 +28,27 @@ const AGENT_NAV = [
   { to: '/profile', label: 'Profile' },
 ];
 
+function navForRole(role: UserRole) {
+  if (role === 'SUPER_ADMIN') return SUPER_ADMIN_NAV;
+  if (role === 'ADMIN') return ADMIN_NAV;
+  return AGENT_NAV;
+}
+
+function portalName(role: UserRole) {
+  if (role === 'SUPER_ADMIN') return 'Platform Console';
+  if (role === 'ADMIN') return 'Admin Portal';
+  return 'Agent Portal';
+}
+
 export function AppLayout() {
   const { user, logout } = useAuth();
   const { connected } = useRealtime();
-  const nav = user?.role === 'ADMIN' ? ADMIN_NAV : AGENT_NAV;
+  const isAdmin = user?.role === 'ADMIN';
+  const { unreadCount } = useNotifications();
 
   if (!user) return <Navigate to="/login" replace />;
+
+  const nav = navForRole(user.role);
 
   return (
     <div className="app-shell">
@@ -32,7 +57,7 @@ export function AppLayout() {
           <span className="logo-mark">SD</span>
           <div>
             <strong>Swiftdrop</strong>
-            <span>{user.role === 'ADMIN' ? 'Admin Portal' : 'Agent Portal'}</span>
+            <span>{portalName(user.role)}</span>
           </div>
         </div>
 
@@ -47,6 +72,11 @@ export function AppLayout() {
               }
             >
               {item.label}
+              {isAdmin &&
+                item.to === '/notifications' &&
+                unreadCount > 0 && (
+                  <span className="nav-badge">{unreadCount}</span>
+                )}
             </NavLink>
           ))}
         </nav>

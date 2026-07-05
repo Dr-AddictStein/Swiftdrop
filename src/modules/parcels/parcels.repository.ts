@@ -1,12 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { and, eq, ilike, SQL } from 'drizzle-orm';
+import { and, eq, ilike, ne, sql, SQL } from 'drizzle-orm';
 import { ParcelStatus } from '../../common/enums/parcel-status.enum';
+import { UserRole } from '../../common/enums/user-role.enum';
 import { DrizzleService } from '../../database/drizzle.service';
-import { parcels } from '../../database/schema';
+import { deliveryEvents, parcels } from '../../database/schema';
 
 export type ParcelRecord = typeof parcels.$inferSelect;
 
 export interface ParcelFilters {
+  companyId?: string;
   status?: ParcelStatus;
   sender?: string;
   assignedAgentId?: string;
@@ -19,6 +21,7 @@ export class ParcelsRepository {
 
   create(data: {
     trackingNumber: string;
+    companyId: string;
     senderName: string;
     senderAddress: string;
     recipientName: string;
@@ -54,6 +57,46 @@ export class ParcelsRepository {
     return baseQuery.where(and(...conditions)).orderBy(parcels.createdAt);
   }
 
+  findActiveByAgent(
+    agentId: string,
+    companyId: string,
+  ): Promise<ParcelRecord[]> {
+    return this.drizzleService.db
+      .select()
+      .from(parcels)
+      .where(
+        and(
+          eq(parcels.assignedAgentId, agentId),
+          eq(parcels.companyId, companyId),
+          ne(parcels.status, ParcelStatus.DELIVERED),
+        ),
+      )
+      .orderBy(parcels.createdAt);
+  }
+
+  async findLeastLoadedAvailableAgentId(
+    companyId: string,
+    excludeAgentId: string,
+  ): Promise<string | null> {
+    const result = await this.drizzleService.db.execute<{ id: string }>(sql`
+      SELECT u.id AS "id"
+      FROM users u
+      LEFT JOIN parcels p
+        ON p.assigned_agent_id = u.id
+        AND p.status <> ${ParcelStatus.DELIVERED}
+      WHERE u.company_id = ${companyId}
+        AND u.role = ${UserRole.DELIVERY_AGENT}
+        AND u.is_available = true
+        AND u.id <> ${excludeAgentId}
+      GROUP BY u.id, u.created_at
+      ORDER BY COUNT(p.id) ASC, u.created_at ASC
+      LIMIT 1
+    `);
+
+    const row = result.rows[0];
+    return row ? String(row.id) : null;
+  }
+
   assign(id: string, assignedAgentId: string): Promise<ParcelRecord | null> {
     return this.drizzleService.db
       .update(parcels)
@@ -75,8 +118,44 @@ export class ParcelsRepository {
       .then((rows) => rows[0] ?? null);
   }
 
+  reassignParcel(
+    id: string,
+    toAgentId: string | null,
+    actorId: string,
+    remarks: string,
+  ): Promise<ParcelRecord | null> {
+    return this.drizzleService.db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(parcels)
+        .set({
+          assignedAgentId: toAgentId,
+          status: ParcelStatus.REGISTERED,
+          retryQueued: false,
+        })
+        .where(eq(parcels.id, id))
+        .returning();
+
+      if (!updated) {
+        return null;
+      }
+
+      await tx.insert(deliveryEvents).values({
+        parcelId: id,
+        status: ParcelStatus.REGISTERED,
+        remarks,
+        createdBy: actorId,
+      });
+
+      return updated;
+    });
+  }
+
   private buildFilterConditions(filters: ParcelFilters): SQL[] {
     const conditions: SQL[] = [];
+
+    if (filters.companyId) {
+      conditions.push(eq(parcels.companyId, filters.companyId));
+    }
 
     if (filters.status) {
       conditions.push(eq(parcels.status, filters.status));

@@ -14,8 +14,8 @@ export interface AgentReportSummary {
 export class ReportsService {
   constructor(private readonly reportsRepository: ReportsRepository) {}
 
-  async getAgentSummaries(): Promise<AgentReportSummary[]> {
-    const rows = await this.reportsRepository.getAgentSummaries();
+  async getAgentSummaries(companyId: string): Promise<AgentReportSummary[]> {
+    const rows = await this.reportsRepository.getAgentSummaries(companyId);
     return rows.map((row) => this.toSummary(row));
   }
 
